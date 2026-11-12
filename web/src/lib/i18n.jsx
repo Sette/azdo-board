@@ -1,0 +1,393 @@
+// Textos da interface em inglês e português. O idioma vem da escolha salva no navegador,
+// senão de APP_LANG (via /api/meta), senão do idioma do navegador.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { setApiLang } from '../api.js';
+
+const STORAGE_KEY = 'azdo-board:lang';
+
+const en = {
+  // gerais
+  appName: 'Board',
+  create: 'Create',
+  createPlus: '＋ Create',
+  cancel: 'Cancel',
+  save: 'Save',
+  saving: 'Saving…',
+  close: 'Close',
+  add: 'Add',
+  none: 'None',
+  unassigned: 'Unassigned',
+  assignToMe: 'Assign to me',
+  backlogNoSprint: 'Backlog (no sprint)',
+  current: 'current',
+  reload: 'Reload from Azure DevOps',
+  openInAzure: 'Open in Azure DevOps ↗',
+  projects: 'Projects',
+  loading: 'Loading…',
+  filter: 'Filter…',
+  nothingFound: 'Nothing found',
+  language: 'Language',
+  // navegação
+  navPlanning: 'Planning',
+  navBacklog: 'Backlog',
+  navBoard: 'Board',
+  navIssues: 'Issues',
+  navBlocked: 'Blocked',
+  navValidation: 'Validation',
+  searchPlaceholder: 'Search (text or #id)',
+  azureError: 'Could not reach Azure DevOps: {message}. Check .env and whether the API is running.',
+  // tipos
+  type_Product_Backlog_Item: 'PBI',
+  type_Bug: 'Bug',
+  type_Task: 'Task',
+  type_Feature: 'Feature',
+  type_Epic: 'Epic',
+  // filtros
+  searchBoard: 'Search this board',
+  onlyMine: 'Only my issues',
+  clearFilters: 'Clear filters',
+  // quadro
+  boardTitle: 'Board {sprint}',
+  daysLeft: '{n} days left',
+  endsToday: 'ends today',
+  sprint: 'Sprint',
+  modeItems: 'PBIs & Bugs',
+  modeTasks: 'Tasks',
+  groupBy: 'Group',
+  groupNone: 'None',
+  groupAssignee: 'Assignee',
+  groupParent: 'Parent PBI',
+  noParent: 'No parent',
+  open: 'open',
+  loadingSprint: 'Loading the sprint from Azure DevOps…',
+  noItemsFilters: 'No issues match these filters.',
+  doneCount: '{n} done',
+  show: 'show',
+  hide: 'hide',
+  colBlocked: 'Blocked',
+  colValidation: 'Validation',
+  pts: '{n} pts',
+  // backlog
+  backlogTitle: 'Backlog',
+  loadingBacklog: 'Loading the backlog from Azure DevOps…',
+  itemsCount: '({n} issues)',
+  active: 'Active',
+  closedWithOpen: 'Closed, with open issues',
+  dragHere: 'Drag issues here',
+  createItem: '＋ Create issue',
+  // itens
+  issuesTitle: 'Issues',
+  tabMine: 'Assigned to me',
+  tabSearch: 'Search',
+  textOrId: 'Text or #id',
+  search: 'Search',
+  state: 'Status',
+  anyAssignee: 'Any assignee',
+  includeDone: 'Include done',
+  searching: 'Searching Azure DevOps…',
+  typeSomething: 'Type text, a #id or pick filters.',
+  colKey: 'Key',
+  colSummary: 'Summary',
+  colAssignee: 'Assignee',
+  colStatus: 'Status',
+  colUpdated: 'Updated',
+  colSprint: 'Sprint',
+  noIssues: 'No issues found.',
+  blockedTitle: 'Blocked',
+  blockedHint: 'Everything flagged as blocked, in any sprint.',
+  validationTitle: 'Validation',
+  validationHint: 'Everything waiting for validation, in any sprint.',
+  // criar
+  createTitle: 'Create',
+  type: 'Type',
+  summary: 'Summary',
+  description: 'Description',
+  markdownOk: 'Markdown supported.',
+  assignee: 'Assignee',
+  parent: 'Parent ({type})',
+  tags: 'Tags',
+  tagsHint: 'Comma separated. E.g. a project tag.',
+  select: 'Select…',
+  fill: 'Fill in: {fields}',
+  creating: 'Creating…',
+  createdToast: '#{id} created in Azure DevOps',
+  // detalhe
+  copyLink: 'Copy Azure DevOps link',
+  acceptanceCriteria: 'Acceptance criteria',
+  addField: 'Add {label}…',
+  markdownSaveHint: 'Markdown. Saving stores the field as Markdown in Azure.',
+  children: 'Child issues',
+  createChildTask: 'Create child task',
+  childTask: '＋ Task',
+  percentDone: '{n}% done',
+  hoursLogged: '{n} h logged',
+  noChildren: 'No child issues.',
+  comments: 'Comments',
+  addComment: 'Add a comment… (Markdown, Ctrl+Enter sends)',
+  commentNotSaved: 'Comment not saved: {message}',
+  details: 'Details',
+  priority: 'Priority',
+  addTag: '＋ tag',
+  removeTag: 'Remove {tag}',
+  createdBy: 'Created {date} by {name}',
+  updatedAt: 'Updated {date}',
+  updatedBy: ' by {name}',
+  links: 'Links',
+  logHours: '＋ Log hours',
+  hoursToAdd: 'Hours to add (negative fixes)',
+  addLink: '＋ Link',
+  noLinks: 'No links.',
+  linkTitle: 'Title (optional)',
+  blocked: 'Blocked',
+  flagBlocked: 'Flag as blocked',
+  unflagBlocked: 'Remove block',
+  inValidation: 'In validation',
+  sendToValidation: 'Send to validation',
+  leaveValidation: 'Leave validation',
+  // avisos
+  warnEmpty: 'No {label}.',
+  warnBlocksUpdates: 'Missing {fields}: Azure rejects any change until filled.',
+  warnPlanning: 'No planning tag ({options}).',
+  warnDoneEmpty: 'Done without {label}.',
+  warnTaskDoneNoHours: 'Task done without Completed Work.',
+  // diálogo
+  moveTo: 'Move to {state}',
+  requiredFields: 'Required fields',
+  loadingItem: 'Loading the issue…',
+  hoursToLog: 'Hours to log',
+  completedWorkSum: 'Completed Work: {cur} h + {add} h = {total} h',
+  useChildrenSum: 'Use the sum of tasks: {n} h',
+  linkRequired: 'link',
+  hoursPositive: 'hours (total must be above zero)',
+  unknownField: 'Azure requires the field {name}, which this screen can’t edit yet. Fill it in',
+  inAzure: 'Azure DevOps',
+  // toasts
+  conflictToast: '#{id} was changed in Azure DevOps by someone else. Reloaded it; try again.',
+  saveFailed: 'Could not save #{id}: {message}',
+};
+
+const pt = {
+  appName: 'Board',
+  create: 'Criar',
+  createPlus: '＋ Criar',
+  cancel: 'Cancelar',
+  save: 'Salvar',
+  saving: 'Salvando…',
+  close: 'Fechar',
+  add: 'Adicionar',
+  none: 'Nenhum',
+  unassigned: 'Não atribuído',
+  assignToMe: 'Atribuir a mim',
+  backlogNoSprint: 'Backlog (sem sprint)',
+  current: 'atual',
+  reload: 'Recarregar do Azure DevOps',
+  openInAzure: 'Abrir no Azure DevOps ↗',
+  projects: 'Projetos',
+  loading: 'Carregando…',
+  filter: 'Filtrar…',
+  nothingFound: 'Nada encontrado',
+  language: 'Idioma',
+  navPlanning: 'Planejamento',
+  navBacklog: 'Backlog',
+  navBoard: 'Quadro',
+  navIssues: 'Itens',
+  navBlocked: 'Bloqueados',
+  navValidation: 'Em validação',
+  searchPlaceholder: 'Pesquisar (texto ou #id)',
+  azureError: 'Não consegui falar com o Azure DevOps: {message}. Confira o .env e se a API está rodando.',
+  type_Product_Backlog_Item: 'PBI',
+  type_Bug: 'Bug',
+  type_Task: 'Task',
+  type_Feature: 'Feature',
+  type_Epic: 'Épico',
+  searchBoard: 'Pesquisar neste quadro',
+  onlyMine: 'Só meus itens',
+  clearFilters: 'Limpar filtros',
+  boardTitle: 'Quadro {sprint}',
+  daysLeft: '{n} dias restantes',
+  endsToday: 'termina hoje',
+  sprint: 'Sprint',
+  modeItems: 'PBIs e Bugs',
+  modeTasks: 'Tasks',
+  groupBy: 'Agrupar',
+  groupNone: 'Nenhum',
+  groupAssignee: 'Responsável',
+  groupParent: 'PBI pai',
+  noParent: 'Sem pai',
+  open: 'abrir',
+  loadingSprint: 'Carregando a sprint do Azure DevOps…',
+  noItemsFilters: 'Nenhum item com esses filtros.',
+  doneCount: '{n} concluídos',
+  show: 'mostrar',
+  hide: 'recolher',
+  colBlocked: 'Bloqueado',
+  colValidation: 'Em validação',
+  pts: '{n} pts',
+  backlogTitle: 'Backlog',
+  loadingBacklog: 'Carregando o backlog do Azure DevOps…',
+  itemsCount: '({n} itens)',
+  active: 'Ativa',
+  closedWithOpen: 'Encerrada, com itens abertos',
+  dragHere: 'Arraste itens para cá',
+  createItem: '＋ Criar item',
+  issuesTitle: 'Itens',
+  tabMine: 'Atribuídos a mim',
+  tabSearch: 'Busca',
+  textOrId: 'Texto ou #id',
+  search: 'Buscar',
+  state: 'Estado',
+  anyAssignee: 'Qualquer responsável',
+  includeDone: 'Incluir concluídos',
+  searching: 'Buscando no Azure DevOps…',
+  typeSomething: 'Digite um texto, um #id ou escolha filtros.',
+  colKey: 'Chave',
+  colSummary: 'Resumo',
+  colAssignee: 'Responsável',
+  colStatus: 'Estado',
+  colUpdated: 'Atualizado',
+  colSprint: 'Sprint',
+  noIssues: 'Nenhum item encontrado.',
+  blockedTitle: 'Bloqueados',
+  blockedHint: 'Tudo o que está marcado como bloqueado, em qualquer sprint.',
+  validationTitle: 'Em validação',
+  validationHint: 'Tudo o que está esperando validação, em qualquer sprint.',
+  createTitle: 'Criar',
+  type: 'Tipo',
+  summary: 'Resumo',
+  description: 'Descrição',
+  markdownOk: 'Aceita Markdown.',
+  assignee: 'Responsável',
+  parent: 'Pai ({type})',
+  tags: 'Tags',
+  tagsHint: 'Separadas por vírgula. Ex.: tag do projeto.',
+  select: 'Selecione…',
+  fill: 'Preencha: {fields}',
+  creating: 'Criando…',
+  createdToast: '#{id} criado no Azure DevOps',
+  copyLink: 'Copiar link do Azure DevOps',
+  acceptanceCriteria: 'Critérios de aceite',
+  addField: 'Adicionar {label}…',
+  markdownSaveHint: 'Markdown. Salvar grava o campo em Markdown no Azure.',
+  children: 'Itens filhos',
+  createChildTask: 'Criar task filha',
+  childTask: '＋ Task',
+  percentDone: '{n}% concluído',
+  hoursLogged: '{n} h lançadas',
+  noChildren: 'Nenhum item filho.',
+  comments: 'Comentários',
+  addComment: 'Adicionar um comentário… (Markdown, Ctrl+Enter envia)',
+  commentNotSaved: 'Comentário não salvo: {message}',
+  details: 'Detalhes',
+  priority: 'Prioridade',
+  addTag: '＋ tag',
+  removeTag: 'Remover {tag}',
+  createdBy: 'Criado {date} por {name}',
+  updatedAt: 'Atualizado {date}',
+  updatedBy: ' por {name}',
+  links: 'Links',
+  logHours: '＋ Lançar horas',
+  hoursToAdd: 'Horas a somar (negativo corrige)',
+  addLink: '＋ Link',
+  noLinks: 'Nenhum link.',
+  linkTitle: 'Título (opcional)',
+  blocked: 'Bloqueado',
+  flagBlocked: 'Marcar como bloqueado',
+  unflagBlocked: 'Tirar bloqueio',
+  inValidation: 'Em validação',
+  sendToValidation: 'Enviar para validação',
+  leaveValidation: 'Tirar de validação',
+  warnEmpty: 'Sem {label}.',
+  warnBlocksUpdates: 'Sem {fields}: o Azure recusa qualquer alteração até preencher.',
+  warnPlanning: 'Sem tag de planejamento ({options}).',
+  warnDoneEmpty: 'Em Done sem {label}.',
+  warnTaskDoneNoHours: 'Task em Done sem Completed Work.',
+  moveTo: 'Mover para {state}',
+  requiredFields: 'Campos obrigatórios',
+  loadingItem: 'Carregando o item…',
+  hoursToLog: 'Horas a lançar',
+  completedWorkSum: 'Completed Work: {cur} h + {add} h = {total} h',
+  useChildrenSum: 'Usar a soma das tasks: {n} h',
+  linkRequired: 'link',
+  hoursPositive: 'horas (o total precisa ser maior que zero)',
+  unknownField: 'O Azure exige o campo {name}, que esta tela ainda não edita. Preencha no',
+  inAzure: 'Azure DevOps',
+  conflictToast: '#{id} foi alterado no Azure DevOps por outra pessoa. Recarreguei o item; tente de novo.',
+  saveFailed: 'Não foi possível salvar #{id}: {message}',
+};
+
+const DICTS = { en, pt };
+export const LANG_OPTIONS = [
+  { value: 'en', label: 'EN' },
+  { value: 'pt', label: 'PT' },
+];
+
+export function normalizeLang(v) {
+  const s = String(v || '').toLowerCase();
+  if (s.startsWith('pt')) return 'pt';
+  if (s.startsWith('en')) return 'en';
+  return null;
+}
+
+function readStored() {
+  try {
+    return normalizeLang(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function makeT(lang) {
+  const dict = DICTS[lang] || en;
+  return (key, params) => {
+    let s = dict[key] ?? en[key] ?? key;
+    if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
+    return s;
+  };
+}
+
+// Rótulo da configuração do processo: texto ou { en, pt }.
+export function localize(label, lang) {
+  if (label && typeof label === 'object') return label[lang] || label.en || label.pt || '';
+  return label ?? '';
+}
+
+const LangContext = createContext(null);
+
+export function LangProvider({ defaultLang, children }) {
+  const [chosen, setChosen] = useState(readStored);
+  const lang = chosen || normalizeLang(defaultLang) || normalizeLang(navigator.language) || 'en';
+
+  useEffect(() => {
+    setApiLang(lang);
+    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en';
+  }, [lang]);
+
+  const setLang = useCallback((l) => {
+    setChosen(l);
+    try {
+      localStorage.setItem(STORAGE_KEY, l);
+    } catch {
+      /* armazenamento indisponível */
+    }
+  }, []);
+
+  const value = useMemo(() => {
+    const t = makeT(lang);
+    return {
+      lang,
+      setLang,
+      t,
+      tl: (label) => localize(label, lang),
+      typeLabel: (type) => {
+        const key = `type_${String(type).replace(/ /g, '_')}`;
+        const v = t(key);
+        return v === key ? type : v;
+      },
+      locale: lang === 'pt' ? 'pt-BR' : 'en-US',
+    };
+  }, [lang, setLang]);
+
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+}
+
+export const useI18n = () => useContext(LangContext);
