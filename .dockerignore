@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+web/dist
+dist
+.git
+.github
+.env
+.env.*
+!.env.example
+process.config.json
+docs
+scripts
+*.log
+.scannerwork
+README.md
+CLAUDE.md

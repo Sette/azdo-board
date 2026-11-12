@@ -1,0 +1,36 @@
+services:
+  azdo-board:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/sette/azdo-board:latest
+    container_name: azdo-board
+    restart: unless-stopped
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${PORT:-3001}:3001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      AZDO_DEMO: ${AZDO_DEMO:-0}
+      APP_LANG: ${APP_LANG:-en}
+    # Para usar um process.config.json customizado, descomente o volume abaixo:
+    # volumes:
+    #   - ./process.config.json:/app/process.config.json:ro
+
+  azdo-board-demo:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/sette/azdo-board:latest
+    container_name: azdo-board-demo
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${PORT:-3001}:3001"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      AZDO_DEMO: "1"
+      APP_LANG: ${APP_LANG:-en}
