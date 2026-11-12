@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand: #0052cc;
+  --color-brand-hover: #0065ff;
+  --color-brand-subtle: #deebff;
+  --color-ink: #172b4d;
+  --color-ink-subtle: #44546f;
+  --color-ink-muted: #626f86;
+  --color-surface: #ffffff;
+  --color-sunken: #f7f8f9;
+  --color-column: #f1f2f4;
+  --color-line: #dcdfe4;
+  --color-hover: #ebecf0;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.prose-azdo {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.prose-azdo p,
+.prose-azdo ul,
+.prose-azdo ol,
+.prose-azdo pre,
+.prose-azdo table {
+  margin: 0 0 0.6em;
+}
+.prose-azdo ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.prose-azdo ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.prose-azdo h1,
+.prose-azdo h2,
+.prose-azdo h3 {
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+}
+.prose-azdo h1 { font-size: 1.25em; }
+.prose-azdo h2 { font-size: 1.12em; }
+.prose-azdo a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+.prose-azdo code {
+  background: var(--color-column);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+.prose-azdo pre {
+  background: var(--color-column);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+.prose-azdo pre code { background: none; padding: 0; }
+.prose-azdo table { border-collapse: collapse; }
+.prose-azdo td,
+.prose-azdo th {
+  border: 1px solid var(--color-line);
+  padding: 4px 8px;
+}
+.prose-azdo img { max-width: 100%; }
