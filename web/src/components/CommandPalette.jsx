@@ -54,7 +54,7 @@ export function ShortcutsModal({ onClose }) {
 
 export default function CommandPalette({ onClose, onCreate, onNavigate }) {
   const { t, lang, setLang } = useI18n();
-  const { cycleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { data: meta } = useMeta();
   const qc = useQueryClient();
   const navigate = onNavigate;
@@ -105,7 +105,30 @@ export default function CommandPalette({ onClose, onCreate, onNavigate }) {
 
     const actions = [
       { id: 'act-create', group: t('paletteActions'), label: t('createPlus').replace(/^＋\s*/, ''), icon: <Icon name="plus" size={14} />, run: () => onCreate() },
-      { id: 'act-theme', group: t('paletteActions'), label: t('themeToggle', { mode: '' }).replace(/:\s*\(/, ' ('), icon: <Icon name="sun" size={14} />, run: () => cycleTheme() },
+      {
+        id: 'act-theme-light',
+        group: t('paletteActions'),
+        label: t('themeLight'),
+        icon: <Icon name="sun" size={14} />,
+        badge: theme === 'light' ? <Icon name="check" size={13} className="text-brand-ink" /> : null,
+        run: () => setTheme('light'),
+      },
+      {
+        id: 'act-theme-dark',
+        group: t('paletteActions'),
+        label: t('themeDark'),
+        icon: <Icon name="moon" size={14} />,
+        badge: theme === 'dark' ? <Icon name="check" size={13} className="text-brand-ink" /> : null,
+        run: () => setTheme('dark'),
+      },
+      {
+        id: 'act-theme-system',
+        group: t('paletteActions'),
+        label: t('themeSystem'),
+        icon: <Icon name="monitor" size={14} />,
+        badge: theme === 'system' ? <Icon name="check" size={13} className="text-brand-ink" /> : null,
+        run: () => setTheme('system'),
+      },
       {
         id: 'act-lang',
         group: t('paletteActions'),
@@ -162,7 +185,7 @@ export default function CommandPalette({ onClose, onCreate, onNavigate }) {
       if (!list.some((x) => x.id === item.id)) list.push(item);
     }
     return list.slice(0, 25);
-  }, [q, cachedItems, meta, t, lang, setLang, cycleTheme, onCreate, navigate, location.pathname, location.search, params]);
+  }, [q, cachedItems, meta, t, lang, setLang, theme, setTheme, onCreate, navigate, location.pathname, location.search, params]);
 
   useEffect(() => setActiveIdx(0), [q]);
 

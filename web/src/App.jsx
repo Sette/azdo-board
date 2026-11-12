@@ -51,22 +51,37 @@ function useNavCounts(meta) {
   };
 }
 
+const THEME_OPTIONS = [
+  { value: 'light', icon: 'sun', shortKey: 'themeShortLight', titleKey: 'themeLight' },
+  { value: 'dark', icon: 'moon', shortKey: 'themeShortDark', titleKey: 'themeDark' },
+  { value: 'system', icon: 'monitor', shortKey: 'themeShortSystem', titleKey: 'themeSystem' },
+];
+
 function ThemeSwitch() {
-  const { theme, cycleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { t } = useI18n();
-  const icon = theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'monitor';
-  const modeLabel = theme === 'dark' ? t('themeDark') : theme === 'light' ? t('themeLight') : t('themeSystem');
-  const label = t('themeToggle', { mode: modeLabel });
   return (
-    <button
-      type="button"
-      onClick={cycleTheme}
-      title={label}
-      aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-[3px] text-ink-subtle hover:bg-hover hover:text-ink"
-    >
-      <Icon name={icon} size={15} />
-    </button>
+    <div className="flex rounded-[3px] bg-column p-0.5 text-xs" role="group" aria-label={t('themeLabel')}>
+      {THEME_OPTIONS.map((o) => {
+        const active = theme === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setTheme(o.value)}
+            aria-pressed={active}
+            title={t(o.titleKey)}
+            aria-label={t(o.titleKey)}
+            className={`inline-flex items-center gap-1 rounded-[3px] px-2 py-1 font-semibold ${
+              active ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            <Icon name={o.icon} size={13} />
+            <span className="hidden xl:inline">{t(o.shortKey)}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
