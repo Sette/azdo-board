@@ -46,6 +46,19 @@ body {
   list-style: decimal;
   padding-left: 1.4em;
 }
+.prose-azdo li:has(> input[type='checkbox']),
+.prose-azdo li:has(> p:first-child > input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.1em;
+}
+.prose-azdo input[type='checkbox'] {
+  accent-color: var(--color-brand);
+  margin-right: 0.4em;
+  vertical-align: -1px;
+}
+.prose-azdo input[type='checkbox']:not(:disabled) {
+  cursor: pointer;
+}
 .prose-azdo h1,
 .prose-azdo h2,
 .prose-azdo h3 {

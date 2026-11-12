@@ -34,7 +34,9 @@ const LIST_KEYS = [['sprint'], ['backlog'], ['my'], ['search'], ['blocked'], ['v
 // para que edições seguidas (título, depois tag) não conflitem entre si.
 const chains = new Map();
 const latestRev = new Map();
+const inflight = new Map();
 function queuedUpdate(id, changes) {
+  inflight.set(id, (inflight.get(id) || 0) + 1);
   const run = () => {
     const rev = Math.max(changes.rev ?? 0, latestRev.get(id) ?? 0) || undefined;
     return api.update(id, { ...changes, rev }).then((detail) => {
@@ -42,7 +44,14 @@ function queuedUpdate(id, changes) {
       return detail;
     });
   };
-  const next = (chains.get(id) || Promise.resolve()).catch(() => {}).then(run);
+  const next = (chains.get(id) || Promise.resolve())
+    .catch(() => {})
+    .then(run)
+    .finally(() => {
+      const left = (inflight.get(id) || 1) - 1;
+      if (left <= 0) inflight.delete(id);
+      else inflight.set(id, left);
+    });
   chains.set(id, next);
   return next;
 }
@@ -62,18 +71,23 @@ export function useUpdateItem() {
   const { t } = useI18n();
   return useMutation({
     mutationFn: ({ id, changes }) => queuedUpdate(id, changes),
-    onMutate: async ({ id, changes, optimistic }) => {
+    onMutate: async ({ id, optimistic }) => {
       if (!optimistic) return {};
       // Patch synchronously so the card lands in its new column on drop, then again
       // after cancelling in-flight refetches (a cancelled fetch may restore old data).
+      const itemKey = ['item', String(id)];
+      const prevItem = qc.getQueryData(itemKey);
       const snapshots = LIST_KEYS.flatMap((k) => qc.getQueriesData({ queryKey: k }));
       patchLists(qc, id, optimistic);
-      await Promise.all(LIST_KEYS.map((k) => qc.cancelQueries({ queryKey: k })));
+      if (prevItem) qc.setQueryData(itemKey, { ...prevItem, ...optimistic });
+      await Promise.all([qc.cancelQueries({ queryKey: itemKey }), ...LIST_KEYS.map((k) => qc.cancelQueries({ queryKey: k }))]);
       patchLists(qc, id, optimistic);
-      return { snapshots };
+      if (prevItem) qc.setQueryData(itemKey, (cur) => (cur ? { ...cur, ...optimistic } : cur));
+      return { snapshots, prevItem };
     },
     onError: (err, { id }, ctx) => {
       for (const [key, data] of ctx?.snapshots || []) qc.setQueryData(key, data);
+      if (ctx?.prevItem && !inflight.get(id)) qc.setQueryData(['item', String(id)], ctx.prevItem);
       if (err.status === 422 && err.missingFields) {
         // quem chamou abre o diálogo de campos faltando (SaveItemProvider)
       } else if (err.status === 409) {
@@ -85,11 +99,13 @@ export function useUpdateItem() {
       LIST_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
     },
     onSuccess: (detail) => {
-      qc.setQueryData(['item', String(detail.id)], detail);
-      const { children, parent, comments, ...flat } = detail;
-      for (const k of LIST_KEYS) {
-        for (const [key, data] of qc.getQueriesData({ queryKey: k })) {
-          if (Array.isArray(data)) qc.setQueryData(key, data.map((it) => (it.id === detail.id ? { ...it, ...flat } : it)));
+      if (!inflight.get(detail.id)) {
+        qc.setQueryData(['item', String(detail.id)], detail);
+        const { children, parent, comments, ...flat } = detail;
+        for (const k of LIST_KEYS) {
+          for (const [key, data] of qc.getQueriesData({ queryKey: k })) {
+            if (Array.isArray(data)) qc.setQueryData(key, data.map((it) => (it.id === detail.id ? { ...it, ...flat } : it)));
+          }
         }
       }
       if (detail.parentId) qc.invalidateQueries({ queryKey: ['item', String(detail.parentId)] });

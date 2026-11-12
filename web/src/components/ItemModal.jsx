@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { fmtDateTime, stateCategory } from '../lib/format.js';
 import { useItemParam, useMeta, usePeople } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
-import { toEditableMarkdown, toSafeHtml } from '../lib/rich.js';
+import { toEditableMarkdown, toggleTaskCheckbox, toSafeHtml } from '../lib/rich.js';
 import Avatar from './Avatar.jsx';
 import { BlockedBadge } from './Card.jsx';
 import { useOpenCreate } from './CreateModal.jsx';
@@ -56,6 +56,7 @@ function ItemView({ id, onClose }) {
     );
 
   const save = (changes, optimistic) => saveItem(item, changes, optimistic);
+  const saveRich = (key) => (v) => save({ [key]: v }, { [key]: { value: v, format: 'markdown' } });
   const richDefs = defsFor(meta, item.type, (d) => d.input === 'rich');
   const linkDefs = defsFor(meta, item.type, (d) => d.input === 'links');
 
@@ -94,15 +95,15 @@ function ItemView({ id, onClose }) {
       <div className="grid grid-cols-1 gap-8 px-6 pb-6 lg:grid-cols-[1fr_300px]">
         <div className="min-w-0">
           <InlineTitle value={item.title} onSave={(title) => save({ title }, { title })} />
-          <RichField label={t('description')} field={item.description} onSave={(v) => save({ description: v })} />
-          {item.type !== 'Task' && <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={(v) => save({ acceptanceCriteria: v })} />}
+          <RichField label={t('description')} field={item.description} onSave={saveRich('description')} />
+          {item.type !== 'Task' && <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={saveRich('acceptanceCriteria')} />}
           {richDefs.map((d) => (
             <RichField
               key={d.key}
               label={tl(d.label)}
               hint={tl(d.hint && typeof d.hint === 'object' && !('en' in d.hint) && !('pt' in d.hint) ? d.hint[item.type] : d.hint)}
               field={item[d.key]}
-              onSave={(v) => save({ [d.key]: v })}
+              onSave={saveRich(d.key)}
             />
           ))}
           {linkDefs.map((d) => (
@@ -155,10 +156,21 @@ function RichField({ label, field, onSave, hint }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const html = toSafeHtml(field?.value, field?.format);
+  const html = toSafeHtml(field?.value, field?.format, { interactiveTasks: true });
   const start = () => {
     setDraft(toEditableMarkdown(field?.value, field?.format));
     setEditing(true);
+  };
+  const onRichClick = (e) => {
+    const box = e.target.closest('input[type="checkbox"]');
+    if (box) {
+      e.stopPropagation();
+      const idx = [...e.currentTarget.querySelectorAll('input[type="checkbox"]')].indexOf(box);
+      if (idx >= 0) onSave(toggleTaskCheckbox(field?.value, field?.format, idx, box.checked));
+      return;
+    }
+    if (e.target.closest('a')) return;
+    start();
   };
   return (
     <section className="mb-6">
@@ -193,7 +205,7 @@ function RichField({ label, field, onSave, hint }) {
           </div>
         </div>
       ) : html ? (
-        <div onClick={start} className="prose-azdo -mx-2 cursor-text rounded px-2 py-1 hover:bg-sunken" dangerouslySetInnerHTML={{ __html: html }} />
+        <div onClick={onRichClick} className="prose-azdo -mx-2 cursor-text rounded px-2 py-1 hover:bg-sunken" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <button onClick={start} className="-mx-2 w-full rounded px-2 py-1 text-left text-ink-muted hover:bg-hover">
           {t('addField', { label: label.toLowerCase() })}
