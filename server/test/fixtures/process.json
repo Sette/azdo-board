@@ -1,0 +1,30 @@
+{
+  "planning": { "label": { "en": "Planning", "pt": "Planejamento" }, "options": ["planned", "unplanned"], "required": true },
+  "links": { "prPrefix": "Main PR: " },
+  "blocked": { "field": "Microsoft.VSTS.CMMI.Blocked", "value": "Yes", "fieldTypes": ["Task"], "tag": "blocked" },
+  "validation": { "states": ["Review"], "tag": "validation", "tagState": { "Task": "In Progress" } },
+  "fields": [
+    { "key": "effort", "ref": "Microsoft.VSTS.Scheduling.Effort", "label": "Effort", "types": ["Product Backlog Item"], "input": "select", "numeric": true, "options": ["1", "2", "3", "5", "8"] },
+    { "key": "storyPoints", "ref": "Microsoft.VSTS.Scheduling.StoryPoints", "label": "Story Points", "azName": "Story Points", "types": ["Product Backlog Item"], "input": "number" },
+    { "key": "completedWork", "ref": "Microsoft.VSTS.Scheduling.CompletedWork", "label": "Completed Work", "types": ["Product Backlog Item", "Task"], "input": "number" },
+    { "key": "activity", "ref": "Microsoft.VSTS.Common.Activity", "label": "Activity", "types": ["Task"], "input": "select", "options": ["Development", "Testing"] },
+    { "key": "team", "ref": "Custom.Team", "label": "Team", "azName": "Team_", "types": ["Product Backlog Item"], "input": "select", "options": ["Core", "Data"], "default": "Core" },
+    { "key": "quarter", "ref": "Custom.Quarter", "label": "Quarter", "types": ["Product Backlog Item"], "input": "select", "options": ["Q1", "Q2", "Q3", "Q4"], "defaultByMonth": ["Q1", "Q1", "Q1", "Q2", "Q2", "Q2", "Q3", "Q3", "Q3", "Q4", "Q4", "Q4"] },
+    { "key": "goals", "ref": "Custom.Goals", "label": "Goals", "types": ["Product Backlog Item"], "input": "readonly", "multi": true },
+    { "key": "summary", "ref": "Custom.Summary", "label": "Summary", "types": ["Product Backlog Item"], "input": "rich" },
+    { "key": "links", "ref": "Custom.Links", "label": "Links", "azName": "Important Links", "types": ["Product Backlog Item"], "input": "links" }
+  ],
+  "create": {
+    "Product Backlog Item": { "required": ["effort", "team", "quarter"], "optional": [] },
+    "Task": { "required": ["activity"], "optional": [] }
+  },
+  "typeRules": {
+    "Product Backlog Item": { "descriptionRequired": true, "parentType": "Feature", "parentRequired": true },
+    "Task": { "parentType": "Product Backlog Item", "parentRequired": true, "inheritFromParent": true }
+  },
+  "transitions": {
+    "Product Backlog Item": { "Done": [{ "key": "storyPoints", "required": true, "default": "effort" }] },
+    "Task": { "Done": [{ "key": "completedWorkAdd", "required": true }] }
+  },
+  "detailFields": { "Product Backlog Item": ["effort", "team", "goals"], "Task": ["activity", "completedWork"] }
+}
