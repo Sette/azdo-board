@@ -2,6 +2,10 @@
 
 A Jira-style board for Azure DevOps. Every action on screen (dragging a card, editing a field, creating an issue, commenting, changing sprint) becomes a real change in Azure DevOps.
 
+![Sprint board](docs/images/board.png)
+
+> Screenshots use the built-in [demo mode](#try-it-without-azure-devops) with fictional data.
+
 The backend is an **MCP client** of the official Azure DevOps MCP server ([`@azure-devops/mcp`](https://github.com/microsoft/azure-devops-mcp)), authenticated with a Personal Access Token. The one exception is the team's sprint-board (taskboard) columns, which the MCP server doesn't expose: those are read and moved through the REST API with the same PAT.
 
 ```
@@ -12,6 +16,8 @@ It runs locally, for one user, with your PAT. The server only listens on `127.0.
 
 ## Features
 
+![Dragging a task to the Validation column](docs/images/drag.gif)
+
 - **Board**: sprint kanban (current sprint by default). *PBIs & Bugs* or *Tasks* mode, columns from your process states (in *Tasks* mode, the team's customized sprint-board columns, e.g. Validation or Blocked, when there are any), plus **Blocked** and **Validation** columns. Drag a card to change its state, block it or send it to validation. Group by assignee or parent PBI; filter by text, people, type and "only my issues". Done PBIs start collapsed.
 - **Backlog**: open PBIs and Bugs grouped by current sprint, future sprints, closed sprints with open issues and backlog. Drag between sections to change the sprint.
 - **Issues**: "assigned to me" and search (text, `#id`, type, state, assignee).
@@ -20,6 +26,52 @@ It runs locally, for one user, with your PAT. The server only listens on `127.0.
 - **Create** dialog with the fields your process requires.
 - **Process rules** (required fields, what a state transition asks for) come from a config file, so the app follows your Azure DevOps process instead of failing with `TF401320`.
 - **English or Portuguese**, switchable in the top bar.
+
+## Screenshots
+
+**Tasks board grouped by parent PBI.** Columns follow the team's sprint board in Azure DevOps (here with Validation and Blocked columns).
+
+![Tasks board](docs/images/board-tasks.png)
+
+**Backlog** by current sprint, future sprints and backlog. Drag between sections to change the sprint.
+
+![Backlog](docs/images/backlog.png)
+
+**Issue view**: Markdown description and acceptance criteria, details, child issues with logged hours, links and comments.
+
+![Issue view](docs/images/issue.png)
+
+**Create dialog** with the fields your process requires (here Planning and Effort).
+
+![Create dialog](docs/images/create.png)
+
+**Process rules on transitions**: moving a task to Done asks for the hours to add to Completed Work before saving.
+
+![Done dialog](docs/images/done-dialog.png)
+
+**Blocked** and **Validation** pages: everything blocked or waiting for validation, in any sprint.
+
+![Blocked](docs/images/blocked.png)
+![Validation](docs/images/validation.png)
+
+**Issues**: assigned to me, and search.
+
+![Issues](docs/images/issues.png)
+
+**English or Portuguese**, switchable in the top bar.
+
+![Portuguese UI](docs/images/board-pt.png)
+
+## Try it without Azure DevOps
+
+```bash
+npm install
+npm run demo        # UI on http://127.0.0.1:5173, API on :3001, no PAT needed
+```
+
+Demo mode (`AZDO_DEMO=1`) runs the real backend on top of an in-memory stand-in for the MCP server, with fictional people and work items (`server/src/demo/`). Everything works (drag, edit, create, comment, hours, process dialogs); changes are lost when the server stops.
+
+To regenerate the images in `docs/images/` after a UI change: `npm run screenshots` (builds the UI, starts the demo API on :3101 and drives Chrome with Playwright; set `CHROME_PATH` if Chrome isn't at `/usr/bin/google-chrome`).
 
 ## Getting started
 
@@ -78,7 +130,7 @@ If Azure still rejects a save with `TF401320`, the API returns 422 with the miss
 ## Tests
 
 ```bash
-npm test     # node:test on the server, with a mocked MCP client and a neutral process fixture
+npm test     # node:test on the server: mocked MCP client, neutral process fixture and demo mode
 ```
 
 ## Notes

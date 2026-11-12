@@ -1,0 +1,246 @@
+{
+  "$comment": "Process rules for demo mode (AZDO_DEMO=1): the Scrum example plus an \"In Review\" validation state, planning tags and team sprint-board columns.",
+  "planning": {
+    "label": {
+      "en": "Planning",
+      "pt": "Planejamento"
+    },
+    "options": [
+      "planned",
+      "unplanned"
+    ],
+    "required": true
+  },
+  "links": {
+    "prPrefix": ""
+  },
+  "blocked": {
+    "field": "Microsoft.VSTS.CMMI.Blocked",
+    "value": "Yes",
+    "fieldTypes": [
+      "Task"
+    ],
+    "tag": "blocked",
+    "column": "Blocked"
+  },
+  "validation": {
+    "states": [
+      "In Review"
+    ],
+    "tag": "validation",
+    "tagState": {},
+    "column": "Validation"
+  },
+  "fields": [
+    {
+      "key": "effort",
+      "ref": "Microsoft.VSTS.Scheduling.Effort",
+      "label": {
+        "en": "Effort",
+        "pt": "Effort"
+      },
+      "types": [
+        "Product Backlog Item",
+        "Bug",
+        "Feature"
+      ],
+      "input": "select",
+      "numeric": true,
+      "options": [
+        "1",
+        "2",
+        "3",
+        "5",
+        "8",
+        "13"
+      ]
+    },
+    {
+      "key": "storyPoints",
+      "ref": "Microsoft.VSTS.Scheduling.StoryPoints",
+      "label": {
+        "en": "Story Points",
+        "pt": "Story Points"
+      },
+      "types": [
+        "Product Backlog Item"
+      ],
+      "input": "number"
+    },
+    {
+      "key": "completedWork",
+      "ref": "Microsoft.VSTS.Scheduling.CompletedWork",
+      "label": {
+        "en": "Completed Work",
+        "pt": "Completed Work"
+      },
+      "types": [
+        "Product Backlog Item",
+        "Task",
+        "Feature"
+      ],
+      "input": "number",
+      "suffix": "h"
+    },
+    {
+      "key": "remainingWork",
+      "ref": "Microsoft.VSTS.Scheduling.RemainingWork",
+      "label": {
+        "en": "Remaining Work",
+        "pt": "Remaining Work"
+      },
+      "types": [
+        "Task",
+        "Bug"
+      ],
+      "input": "number",
+      "suffix": "h"
+    },
+    {
+      "key": "activity",
+      "ref": "Microsoft.VSTS.Common.Activity",
+      "label": {
+        "en": "Activity",
+        "pt": "Activity"
+      },
+      "types": [
+        "Task",
+        "Bug"
+      ],
+      "input": "select",
+      "options": [
+        "Development",
+        "Design",
+        "Documentation",
+        "Requirements",
+        "Testing",
+        "Deployment"
+      ]
+    },
+    {
+      "key": "releaseNotes",
+      "ref": "Custom.ReleaseNotes",
+      "label": {
+        "en": "Release notes",
+        "pt": "Notas de release"
+      },
+      "types": [
+        "Product Backlog Item"
+      ],
+      "input": "rich",
+      "warnIfEmptyWhenDone": [
+        "Product Backlog Item"
+      ]
+    }
+  ],
+  "create": {
+    "Product Backlog Item": {
+      "required": [
+        "effort"
+      ],
+      "optional": []
+    },
+    "Task": {
+      "required": [
+        "activity"
+      ],
+      "optional": [
+        "remainingWork"
+      ]
+    },
+    "Bug": {
+      "required": [],
+      "optional": [
+        "effort",
+        "activity"
+      ]
+    },
+    "Feature": {
+      "required": [],
+      "optional": [
+        "effort"
+      ]
+    }
+  },
+  "typeRules": {
+    "Product Backlog Item": {
+      "descriptionRequired": false,
+      "parentType": "Feature",
+      "parentRequired": false
+    },
+    "Bug": {
+      "descriptionRequired": false,
+      "parentType": "Feature",
+      "parentRequired": false
+    },
+    "Task": {
+      "descriptionRequired": false,
+      "parentType": "Product Backlog Item",
+      "parentRequired": true,
+      "inheritFromParent": true
+    },
+    "Feature": {
+      "descriptionRequired": false,
+      "parentType": "Epic",
+      "parentRequired": false
+    }
+  },
+  "transitions": {
+    "Task": {
+      "Done": [
+        {
+          "key": "completedWorkAdd",
+          "required": true,
+          "hint": {
+            "en": "Hours spent, added to the current Completed Work.",
+            "pt": "Horas gastas, somadas ao Completed Work atual."
+          }
+        }
+      ]
+    },
+    "Product Backlog Item": {
+      "Done": [
+        {
+          "key": "storyPoints",
+          "required": true,
+          "default": "effort",
+          "onlyIfEmpty": "storyPoints",
+          "hint": {
+            "en": "Story Points = Effort, unless agreed otherwise.",
+            "pt": "Story Points = Effort, salvo combinado diferente."
+          }
+        },
+        {
+          "key": "completedWork",
+          "required": true,
+          "default": "childrenCompletedWork",
+          "hint": {
+            "en": "Sum of the child tasks' Completed Work.",
+            "pt": "Soma do Completed Work das tasks filhas."
+          }
+        }
+      ]
+    }
+  },
+  "detailFields": {
+    "Product Backlog Item": [
+      "effort",
+      "storyPoints",
+      "completedWork"
+    ],
+    "Task": [
+      "activity",
+      "completedWork",
+      "remainingWork"
+    ],
+    "Bug": [
+      "effort",
+      "activity",
+      "remainingWork"
+    ],
+    "Feature": [
+      "effort",
+      "completedWork"
+    ]
+  }
+}

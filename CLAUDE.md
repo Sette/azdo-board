@@ -12,6 +12,7 @@ Jira-style board for Azure DevOps. Read `README.md` first.
   - `src/mappers.js`: MCP format → front-end DTOs, and DTO → JSON Patch (`toPatchOps(changes, rev, fields)`, with `test /rev`).
   - `src/i18n.js`: API error messages (en/pt) by error `code`; the front sends `x-lang`.
   - `src/routes.js`: thin REST routes and the error handler.
+  - `src/demo/` (`AZDO_DEMO=1`, entry `src/demo.js`): fictional data (`data.js`), an in-memory MCP (`fakeMcp.js`, only the tool actions `azdo.js` uses), a tiny WIQL evaluator (`wiql.js`), a fake taskboard and `process.demo.json`. The real `azdo.js` runs on top of it.
 - `web/` (React 19, Vite, Tailwind 4, react-query, dnd-kit)
   - `src/lib/i18n.jsx`: UI strings (en/pt), `useI18n()` → `t`, `tl` (config labels), `typeLabel`, `locale`. Never hard-code UI text.
   - `src/lib/hooks.js`: queries, `useUpdateItem` (optimistic + per-item queue with newest rev), `useItemParam` (`?item=`).
@@ -29,11 +30,15 @@ Jira-style board for Azure DevOps. Read `README.md` first.
 - Done → Removed is not a valid transition in the Scrum process: go through New.
 - Organization-specific rules live only in `process.config.json` (git-ignored), never in code or tests.
 - Test against real Azure DevOps only with test items, and move them to Removed afterwards.
+- Using a new MCP tool action in `azdo.js`? Add it to `src/demo/fakeMcp.js` too, or demo mode (and its test) breaks. A new WIQL shape must parse in `src/demo/wiql.js`.
+- UI changed? Regenerate the README images with `npm run screenshots` (demo data only, never real work items).
 
 ## Commands
 
 ```bash
 npm run dev     # api + web
+npm run demo    # same, with fictional in-memory data (no Azure DevOps)
+npm run screenshots  # regenerate docs/images from demo mode (Chrome + Playwright)
 npm test        # server tests
 npm run build   # web build (served by Express on npm start)
 ```
