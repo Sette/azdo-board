@@ -11,13 +11,14 @@ import {
   toSprint,
 } from './mappers.js';
 import { getProcess } from './process.js';
+import { createTaskboard } from './taskboard.js';
 
 const BOARD_TYPES = ['Product Backlog Item', 'Bug', 'Task'];
 const STATE_TYPES = [...BOARD_TYPES, 'Feature', 'Epic'];
 const CREATE_TYPES = ['Product Backlog Item', 'Task', 'Bug', 'Feature'];
 const META_TTL_MS = 10 * 60 * 1000;
 
-export function createAzdo({ callTool = defaultCallTool, env = process.env, proc = getProcess() } = {}) {
+export function createAzdo({ callTool = defaultCallTool, env = process.env, proc = getProcess(), taskboard = createTaskboard({ env }) } = {}) {
   const org = env.AZDO_ORG;
   const project = env.AZDO_PROJECT;
   const team = env.AZDO_TEAM;
@@ -43,9 +44,10 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
 
   async function getMeta({ refresh = false } = {}) {
     if (!refresh && metaCache && Date.now() - metaCache.at < META_TTL_MS) return metaCache.data;
-    const [iterations, settings, ...types] = await Promise.all([
+    const [iterations, settings, boardColumns, ...types] = await Promise.all([
       callTool('work', { action: 'list_team_iterations', project, team }),
       callTool('work', { action: 'get_team_settings', project, team }),
+      taskboard ? taskboard.columns().catch((err) => (console.warn(`[taskboard] ${err.message}`), null)) : null,
       ...STATE_TYPES.map((t) =>
         callTool('wit_work_item', { action: 'get_type', project, workItemType: t }).catch(() => null),
       ),
@@ -69,6 +71,8 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
       types: BOARD_TYPES.filter((t) => states[t]),
       createTypes: CREATE_TYPES.filter((t) => states[t]),
       states,
+      // Team sprint-board columns for tasks (null = the board uses the Task states).
+      taskboard: boardColumns?.filter((c) => c.mappings.Task) || null,
       webUrl: `https://dev.azure.com/${org}/${encodeURIComponent(project)}`,
       ...proc.publicMeta(),
     };
@@ -79,7 +83,34 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
   async function getSprintItems(iterationId) {
     const res = await callTool('wit_work_item', { action: 'list_for_iteration', project, team, iterationId });
     const ids = (res?.workItemRelations || []).map((r) => r.target?.id);
-    return getItems(ids);
+    return withColumns(await getItems(ids), iterationId);
+  }
+
+  // Adds each task's taskboard column (and the flags that depend on it).
+  async function withColumns(items, iterationId) {
+    if (!taskboard || !iterationId || !items.some((it) => it.type === 'Task')) return items;
+    const meta = await getMeta();
+    if (!meta.taskboard) return items;
+    const cols = await taskboard.itemColumns(iterationId).catch((err) => (console.warn(`[taskboard] ${err.message}`), null));
+    if (!cols) return items;
+    return items.map((it) => (it.type === 'Task' && cols.has(it.id) ? flags({ ...it, column: cols.get(it.id) }) : it));
+  }
+
+  // After a task's state change, Azure puts it back in the last column used for that
+  // state (e.g. Blocked). Set the requested column, or the first one mapped to the state.
+  async function syncColumn(detail, column, stateChanged) {
+    if (!taskboard || detail?.type !== 'Task' || (!column && !stateChanged)) return detail;
+    const meta = await getMeta();
+    const cols = meta.taskboard;
+    if (!cols) return detail;
+    const target = column || cols.find((c) => c.mappings.Task === detail.state)?.name;
+    const sprint = meta.sprints.find((s) => s.path === detail.iterationPath);
+    if (!target || !sprint) return detail;
+    if (cols.find((c) => c.name === target)?.mappings.Task !== detail.state) {
+      throw new McpError(`column ${target} is not mapped to state ${detail.state}`, { status: 409, code: 'columnState', params: { column: target, state: detail.state } });
+    }
+    await taskboard.move(sprint.id, detail.id, target);
+    return flags({ ...detail, column: target });
   }
 
   async function getBacklog() {
@@ -133,7 +164,11 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
       callTool('wit_work_item', { action: 'list_comments', project, workItemId: Number(id), top: 100 }).catch(() => null),
     ]);
     if (!wi?.id) throw new McpError(`Work item ${id} not found`, { status: 404, code: 'notFound', params: { id } });
-    const item = flags(toItemDetail(wi, org, proc.fields));
+    let item = flags(toItemDetail(wi, org, proc.fields));
+    if (item.type === 'Task' && taskboard) {
+      const sprint = (await getMeta()).sprints.find((s) => s.path === item.iterationPath);
+      if (sprint) [item] = await withColumns([item], sprint.id);
+    }
     const [children, parents] = await Promise.all([getItems(item.childIds), getItems([item.parentId])]);
     const tasks = children.filter((c) => c.type === 'Task' && c.state !== 'Removed');
     return {
@@ -162,14 +197,14 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
     }
   }
 
-  async function updateItem(id, { rev, completedWorkAdd, blocked, validation, ...changes }) {
+  async function updateItem(id, { rev, completedWorkAdd, blocked, validation, column, ...changes }) {
     // Bloqueio/validação viram campo, tags e estado conforme o tipo (process.flagChanges).
     if (blocked !== undefined || validation !== undefined) {
       const cur = await callTool('wit_work_item', {
         action: 'get',
         project,
         id: Number(id),
-        fields: ['System.WorkItemType', 'System.State', 'System.Tags'],
+        fields: ['System.WorkItemType', 'System.State', 'System.Tags', proc.blocked.field],
       });
       const item = toItem(cur);
       const derived = proc.flagChanges({ ...item, tags: changes.tags ?? item.tags }, { blocked, validation });
@@ -204,9 +239,10 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
       for (const { def, value } of linkAdds) changes[def.key] = proc.appendLink(cur?.fields?.[def.ref], value);
     }
     const updates = toPatchOps(changes, rev, proc.fields);
-    if (!updates.filter((u) => u.op !== 'test').length) return getItem(id);
-    await withRuleErrors(() => callTool('wit_work_item_write', { action: 'update', project, id: Number(id), updates }));
-    return getItem(id);
+    if (updates.some((u) => u.op !== 'test')) {
+      await withRuleErrors(() => callTool('wit_work_item_write', { action: 'update', project, id: Number(id), updates }));
+    }
+    return syncColumn(await getItem(id), column, changes.state !== undefined);
   }
 
   async function createItem({ type, title, parentId, iterationPath, assignee, description, tags = [], ...extra }) {
@@ -252,6 +288,19 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
 
   const notClosed = `[System.State] NOT IN ('Done', 'Removed', 'Closed')`;
 
+  // Taskboard columns are per sprint: only the current sprint's are read for these pages.
+  async function currentColumns(items) {
+    if (!taskboard) return items;
+    return withColumns(items, (await getMeta()).currentSprintId);
+  }
+  async function idsInColumn(column) {
+    if (!taskboard || !column) return [];
+    const meta = await getMeta();
+    if (!meta.taskboard || !meta.currentSprintId) return [];
+    const cols = await taskboard.itemColumns(meta.currentSprintId).catch(() => new Map());
+    return [...cols].filter(([, c]) => c === column).map(([id]) => id);
+  }
+
   // Tudo o que está bloqueado (campo Blocked ou tag), de qualquer sprint.
   async function getBlocked() {
     const b = proc.blocked;
@@ -260,7 +309,8 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
         `AND ([${b.field}] = '${esc(b.value)}' OR [System.Tags] CONTAINS '${esc(b.tag)}') ORDER BY [System.ChangedDate] DESC`,
       300,
     );
-    return (await getItems((res?.workItems || []).map((w) => w.id))).filter((it) => it.blocked);
+    const ids = [...(res?.workItems || []).map((w) => w.id), ...(await idsInColumn(b.column))];
+    return (await currentColumns(await getItems(ids))).filter((it) => it.blocked);
   }
 
   // Tudo o que está em validação (estado de validação ou tag), de qualquer sprint.
@@ -273,7 +323,8 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
         `ORDER BY [System.ChangedDate] DESC`,
       300,
     );
-    return (await getItems((res?.workItems || []).map((w) => w.id))).filter((it) => it.inValidation);
+    const ids = [...(res?.workItems || []).map((w) => w.id), ...(await idsInColumn(v.column))];
+    return (await currentColumns(await getItems(ids))).filter((it) => it.inValidation);
   }
 
   // Candidatos a pai no formulário "Criar" (Features para PBI/Bug, PBIs para Task).

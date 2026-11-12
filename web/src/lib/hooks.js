@@ -47,6 +47,14 @@ function queuedUpdate(id, changes) {
   return next;
 }
 
+function patchLists(qc, id, optimistic) {
+  for (const k of LIST_KEYS) {
+    for (const [key, data] of qc.getQueriesData({ queryKey: k })) {
+      if (Array.isArray(data)) qc.setQueryData(key, data.map((it) => (it.id === id ? { ...it, ...optimistic } : it)));
+    }
+  }
+}
+
 // Atualiza um item: otimista nas listas em cache, PATCH com rev, rollback/refetch no erro.
 export function useUpdateItem() {
   const qc = useQueryClient();
@@ -56,11 +64,12 @@ export function useUpdateItem() {
     mutationFn: ({ id, changes }) => queuedUpdate(id, changes),
     onMutate: async ({ id, changes, optimistic }) => {
       if (!optimistic) return {};
-      await Promise.all(LIST_KEYS.map((k) => qc.cancelQueries({ queryKey: k })));
+      // Patch synchronously so the card lands in its new column on drop, then again
+      // after cancelling in-flight refetches (a cancelled fetch may restore old data).
       const snapshots = LIST_KEYS.flatMap((k) => qc.getQueriesData({ queryKey: k }));
-      for (const [key, data] of snapshots) {
-        if (Array.isArray(data)) qc.setQueryData(key, data.map((it) => (it.id === id ? { ...it, ...optimistic } : it)));
-      }
+      patchLists(qc, id, optimistic);
+      await Promise.all(LIST_KEYS.map((k) => qc.cancelQueries({ queryKey: k })));
+      patchLists(qc, id, optimistic);
       return { snapshots };
     },
     onError: (err, { id }, ctx) => {

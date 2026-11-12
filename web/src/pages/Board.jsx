@@ -77,8 +77,26 @@ export default function Board() {
   const validationStates = meta?.validation?.states || [];
   const tagState = meta?.validation?.tagState?.[cfg.statesOf];
 
+  // Tasks mode follows the team's sprint board (taskboard) columns when the team customized them.
+  const board = mode === 'tasks' ? meta?.taskboard : null;
+  const blockedColumn = meta?.blocked?.column;
+
   // Colunas: estados do tipo + Validation (virtual, quando o tipo não tem estado de validação) + Blocked.
   const columns = useMemo(() => {
+    if (board) {
+      const cols = board.map((c) => ({
+        id: c.name,
+        label: c.name,
+        state: c.mappings.Task,
+        category: stateCategory(meta, 'Task', c.mappings.Task),
+        kind: c.name === blockedColumn ? 'blocked' : 'state',
+      }));
+      if (!cols.some((c) => c.kind === 'blocked')) {
+        const firstDone = cols.findIndex((c) => c.category === 'Completed');
+        cols.splice(firstDone < 0 ? cols.length : firstDone, 0, { id: BLOCKED, label: t('colBlocked'), category: 'Blocked', kind: 'blocked' });
+      }
+      return cols;
+    }
     const states = (meta?.states?.[cfg.statesOf] || []).filter((s) => s.category !== 'Removed');
     const cols = states.map((s) => ({ id: s.name, label: s.name, category: s.category, kind: 'state' }));
     const hasValidationState = states.some((s) => validationStates.includes(s.name));
@@ -88,10 +106,19 @@ export default function Board() {
     extra.push({ id: BLOCKED, label: t('colBlocked'), category: 'Blocked', kind: 'blocked' });
     cols.splice(firstDone === 0 && !cols.some((c) => c.category === 'Completed') ? cols.length : firstDone, 0, ...extra);
     return cols;
-  }, [meta, cfg.statesOf, validationStates, tagState, t]);
+  }, [meta, board, blockedColumn, cfg.statesOf, validationStates, tagState, t]);
   const hasVirtualValidation = columns.some((c) => c.id === VALIDATION);
+  const hasVirtualBlocked = columns.some((c) => c.id === BLOCKED);
 
-  const columnOf = (it) => (it.blocked ? BLOCKED : hasVirtualValidation && it.inValidation ? VALIDATION : it.state);
+  const columnOf = (it) => {
+    if (board) {
+      if (it.blocked && hasVirtualBlocked) return BLOCKED;
+      if (it.blocked && blockedColumn && columns.some((c) => c.id === blockedColumn)) return blockedColumn;
+      if (it.column && columns.some((c) => c.id === it.column)) return it.column;
+      return columns.find((c) => c.state === it.state)?.id ?? it.state;
+    }
+    return it.blocked ? BLOCKED : hasVirtualValidation && it.inValidation ? VALIDATION : it.state;
+  };
 
   const byId = useMemo(() => new Map(all.map((it) => [it.id, it])), [all]);
   const modeItems = all.filter((it) => cfg.types.includes(it.type) && it.state !== 'Removed');
@@ -137,6 +164,18 @@ export default function Board() {
     const item = active.data.current.item;
     const target = String(over.id).split('::')[1];
     if (!target || target === columnOf(item)) return;
+    const col = board && columns.find((c) => c.id === target);
+    if (col?.state) {
+      // Taskboard column: change the state when the column needs it, then set the column.
+      // The blocked column also sets the Blocked flag; leaving it clears the flag.
+      const toBlocked = col.kind === 'blocked';
+      const changes = { column: col.id };
+      if (col.state !== item.state) changes.state = col.state;
+      if (toBlocked && !item.blocked) changes.blocked = true;
+      if (!toBlocked && item.blocked) changes.blocked = false;
+      save(item, changes, { column: col.id, state: col.state, blocked: toBlocked, inValidation: col.id === meta?.validation?.column });
+      return;
+    }
     if (target === BLOCKED) {
       save(item, { blocked: true }, { blocked: true });
       return;
@@ -304,7 +343,7 @@ export default function Board() {
               {!visible.length && <p className="py-8 text-center text-ink-muted">{t('noItemsFilters')}</p>}
             </div>
           </div>
-          <DragOverlay>
+          <DragOverlay dropAnimation={null}>
             {dragging ? (
               <div className="w-[260px]">
                 <CardBody item={dragging} dragging />

@@ -2,7 +2,7 @@
 
 A Jira-style board for Azure DevOps. Every action on screen (dragging a card, editing a field, creating an issue, commenting, changing sprint) becomes a real change in Azure DevOps.
 
-The backend doesn't call the REST API directly: it is an **MCP client** of the official Azure DevOps MCP server ([`@azure-devops/mcp`](https://github.com/microsoft/azure-devops-mcp)), authenticated with a Personal Access Token.
+The backend is an **MCP client** of the official Azure DevOps MCP server ([`@azure-devops/mcp`](https://github.com/microsoft/azure-devops-mcp)), authenticated with a Personal Access Token. The one exception is the team's sprint-board (taskboard) columns, which the MCP server doesn't expose: those are read and moved through the REST API with the same PAT.
 
 ```
 React + Vite (:5173) ──/api──▶ Express (:3001) ──stdio──▶ @azure-devops/mcp ──▶ Azure DevOps
@@ -12,7 +12,7 @@ It runs locally, for one user, with your PAT. The server only listens on `127.0.
 
 ## Features
 
-- **Board**: sprint kanban (current sprint by default). *PBIs & Bugs* or *Tasks* mode, columns from your process states, plus **Blocked** and **Validation** columns. Drag a card to change its state, block it or send it to validation. Group by assignee or parent PBI; filter by text, people, type and "only my issues". Done PBIs start collapsed.
+- **Board**: sprint kanban (current sprint by default). *PBIs & Bugs* or *Tasks* mode, columns from your process states (in *Tasks* mode, the team's customized sprint-board columns, e.g. Validation or Blocked, when there are any), plus **Blocked** and **Validation** columns. Drag a card to change its state, block it or send it to validation. Group by assignee or parent PBI; filter by text, people, type and "only my issues". Done PBIs start collapsed.
 - **Backlog**: open PBIs and Bugs grouped by current sprint, future sprints, closed sprints with open issues and backlog. Drag between sections to change the sprint.
 - **Issues**: "assigned to me" and search (text, `#id`, type, state, assignee).
 - **Blocked** and **Validation** pages: everything blocked or waiting for validation, in any sprint.
@@ -59,8 +59,8 @@ Azure DevOps processes are customized per organization: custom fields, fields re
 | `transitions` | Per type and target state: fields asked before saving. `completedWorkAdd` asks for hours and adds them to Completed Work; `<linksField>Add` appends a link; `default: "effort"` / `"childrenCompletedWork"` pre-fill values; `onlyIfEmpty` skips fields already filled |
 | `detailFields` | Per type: fields shown in the issue view's Details panel |
 | `planning` | Optional tag choice required on creation (e.g. planned/unplanned), never copied from the parent |
-| `blocked` | `field`/`value` for types that have a Blocked field (Task in Scrum), `tag` for the others |
-| `validation` | `states` that mean "in validation"; for types without such a state, `tagState` maps the type to the state it moves to and `tag` marks it |
+| `blocked` | `field`/`value` for types that have a Blocked field (Task in Scrum), `tag` for the others, optional `column`: taskboard column that means blocked |
+| `validation` | `states` that mean "in validation". Board columns are the real states; optionally, for types without such a state, `tagState` maps the type to the state it moves to and `tag` marks it (adds a virtual Validation column); optional `column`: taskboard column that means "in validation" |
 | `links` | `prPrefix` for GitHub PR links appended to a `links` field |
 
 Labels and hints accept a string or `{ "en": "...", "pt": "..." }`.
@@ -71,6 +71,7 @@ If Azure still rejects a save with `TF401320`, the API returns 422 with the miss
 
 - **Concurrency**: every edit sends a `test /rev` operation. If the item changed in Azure after you loaded it, the save is rejected (409) and the issue reloads. Edits on the same issue are queued and use the newest revision.
 - **Hours**: Completed Work on tasks is always added to, never overwritten (negative hours fix mistakes; the total never goes below zero). The server reads the current value and writes it with the revision check.
+- **Sprint-board columns**: a task's taskboard column is not a work item field, and Azure only accepts a column mapped to the current state. Dragging a task changes the state first, then the column; a state change alone moves the task to the first column of that state (otherwise Azure puts it back in the last one used, e.g. Blocked).
 - **Tags**: written with `replace`, since `add` on `System.Tags` only appends.
 - **Markdown**: editing a description or rich field stores it as Markdown in Azure (existing HTML is converted).
 

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import { createAzdo as create } from '../src/azdo.js';
 import { loadProcess } from '../src/process.js';
 
-const proc = loadProcess(JSON.parse(fs.readFileSync(new URL('./fixtures/process.json', import.meta.url))));
+const config = JSON.parse(fs.readFileSync(new URL('./fixtures/process.json', import.meta.url)));
+const proc = loadProcess(config);
 const createAzdo = (opts) => create({ proc, ...opts });
 
 const env = { AZDO_ORG: 'org', AZDO_PROJECT: 'Proj', AZDO_TEAM: 'Team', AZDO_ME: 'me@x.com' };
@@ -139,4 +140,49 @@ test('getBlocked e getValidation filtram pelo processo', async () => {
   const azdo = createAzdo({ callTool, env });
   assert.deepEqual((await azdo.getBlocked()).map((i) => i.id), [1]);
   assert.deepEqual((await azdo.getValidation()).map((i) => i.id), []);
+});
+
+test('taskboard: sprint items get their column; a state change also moves the column', async () => {
+  const moves = [];
+  const taskboard = {
+    columns: async () => [
+      { name: 'New', mappings: { Task: 'New' } },
+      { name: 'In Progress', mappings: { Task: 'In Progress' } },
+      { name: 'Validation', mappings: { Task: 'In Progress' } },
+      { name: 'Done', mappings: { Task: 'Done' } },
+    ],
+    itemColumns: async () => new Map([[5, 'Validation']]),
+    move: async (iterationId, id, column) => moves.push({ iterationId, id, column }),
+  };
+  const state = { value: 'In Progress' };
+  const { calls, callTool } = fakeTools({
+    'work:list_team_iterations': () => [{ id: 'b', name: 'S2', path: 'Proj\\S2', attributes: { timeFrame: 1 } }],
+    'work:get_team_settings': () => ({ defaultAreaPath: 'Proj' }),
+    'wit_work_item:get_type': () => null,
+    'wit_work_item:list_for_iteration': () => ({ workItemRelations: [{ target: { id: 5 } }] }),
+    'wit_work_item:get_batch': ({ ids }) => ids.map((id) => wi(id, { 'System.State': state.value })),
+    'wit_work_item:get': () => wi(5, { 'System.State': state.value, 'System.IterationPath': 'Proj\\S2' }),
+    'wit_work_item:list_comments': () => ({ comments: [] }),
+    'wit_work_item_write:update': () => ({ id: 5 }),
+  });
+  const columnProc = loadProcess({ ...config, blocked: { ...config.blocked, column: 'Blocked' }, validation: { ...config.validation, column: 'Validation' } });
+  const azdo = create({ callTool, env, proc: columnProc, taskboard });
+
+  const [item] = await azdo.getSprintItems('b');
+  assert.equal(item.column, 'Validation');
+  assert.equal(item.inValidation, true);
+
+  // Explicit column (drag to Validation) without a state change.
+  let detail = await azdo.updateItem(5, { rev: 1, column: 'Validation' });
+  assert.deepEqual(moves.at(-1), { iterationId: 'b', id: 5, column: 'Validation' });
+  assert.equal(calls.some((c) => c.args.action === 'update'), false);
+  assert.equal(detail.inValidation, true);
+
+  // State change without a column: first column mapped to the new state.
+  state.value = 'Done';
+  detail = await azdo.updateItem(5, { rev: 1, state: 'Done' });
+  assert.deepEqual(moves.at(-1), { iterationId: 'b', id: 5, column: 'Done' });
+
+  // A column that doesn't match the state is refused.
+  await assert.rejects(() => azdo.updateItem(5, { rev: 1, column: 'Validation' }), (e) => e.code === 'columnState');
 });

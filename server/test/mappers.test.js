@@ -123,11 +123,17 @@ test('bloqueio e validação: leitura e conversão em mudanças', () => {
   assert.equal(proc.inValidation({ type: 'Product Backlog Item', state: 'Review', tags: [] }), true);
   assert.equal(proc.inValidation({ type: 'Task', state: 'In Progress', tags: ['validation'] }), true);
   assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'New', tags: ['x'] }, { blocked: true }), { blockedField: 'Yes' });
-  assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'New', tags: ['x'] }, { blocked: false }), { blockedField: null });
+  assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'New', tags: ['x'], blockedField: 'Yes' }, { blocked: false }), { blockedField: null });
+  assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'New', tags: ['x'] }, { blocked: false }), {});
   assert.deepEqual(toPatchOps({ blockedField: null }, undefined, proc.fields), [{ op: 'remove', path: '/fields/Microsoft.VSTS.CMMI.Blocked' }]);
   assert.deepEqual(proc.flagChanges({ type: 'Product Backlog Item', state: 'New', tags: ['x'] }, { blocked: true }), { tags: ['x', 'blocked'] });
   assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'New', tags: [] }, { validation: true }), { tags: ['validation'], state: 'In Progress' });
   assert.deepEqual(proc.flagChanges({ type: 'Task', state: 'In Progress', tags: ['validation'] }, { validation: false }), { tags: [] });
+  // Taskboard columns that mean blocked / in validation (team sprint board).
+  const cols = loadProcess({ ...config, blocked: { ...config.blocked, column: 'Blocked' }, validation: { ...config.validation, column: 'Validation' } });
+  assert.equal(cols.isBlocked({ type: 'Task', column: 'Blocked', tags: [] }), true);
+  assert.equal(cols.inValidation({ type: 'Task', state: 'In Progress', column: 'Validation', tags: [] }), true);
+  assert.equal(cols.inValidation({ type: 'Task', state: 'In Progress', column: 'In Progress', tags: [] }), false);
 });
 
 test('i18n: idioma, rótulos e mensagens', () => {

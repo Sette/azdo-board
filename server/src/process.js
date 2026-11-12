@@ -33,13 +33,19 @@ export function loadProcess(config = {}, now = () => new Date()) {
   // Bloqueio: campo Blocked do Azure nos tipos que o têm (Task no Scrum); tag nos demais.
   const blocked = { field: 'Microsoft.VSTS.CMMI.Blocked', value: 'Yes', fieldTypes: ['Task'], tag: 'blocked', ...(config.blocked || {}) };
   // Validação: estados de validação do processo; tipos sem esse estado usam tag + um estado "em andamento".
-  const validation = { states: [], tag: 'validation', tagState: { Task: 'In Progress' }, ...(config.validation || {}) };
+  // Board columns are real states by default; tagState opts a type into a tag-based "in validation".
+  const validation = { states: [], tag: 'validation', tagState: {}, ...(config.validation || {}) };
 
   const hasTag = (tags, tag) => (tags || []).some((t) => t.toLowerCase() === String(tag).toLowerCase());
   const withoutTag = (tags, tag) => (tags || []).filter((t) => t.toLowerCase() !== String(tag).toLowerCase());
+  // `column`: taskboard column (team sprint board) that also means blocked / in validation.
   const isBlocked = (item) =>
-    blocked.fieldTypes.includes(item.type) ? String(item.blockedField || '').toLowerCase() === String(blocked.value).toLowerCase() : hasTag(item.tags, blocked.tag);
-  const inValidation = (item) => validation.states.includes(item.state) || (!!validation.tagState[item.type] && hasTag(item.tags, validation.tag));
+    (!!blocked.column && item.column === blocked.column) ||
+    (blocked.fieldTypes.includes(item.type) ? String(item.blockedField || '').toLowerCase() === String(blocked.value).toLowerCase() : hasTag(item.tags, blocked.tag));
+  const inValidation = (item) =>
+    validation.states.includes(item.state) ||
+    (!!validation.column && item.column === validation.column) ||
+    (!!validation.tagState[item.type] && hasTag(item.tags, validation.tag));
 
   // Converte { blocked, validation } em mudanças reais (campo, tags e estado).
   function flagChanges(item, { blocked: b, validation: v }) {
@@ -47,7 +53,10 @@ export function loadProcess(config = {}, now = () => new Date()) {
     let tags = item.tags || [];
     if (b !== undefined) {
       // O Azure só aceita o valor de bloqueio (ex.: "Yes"); desbloquear é limpar o campo.
-      if (blocked.fieldTypes.includes(item.type)) out.blockedField = b ? blocked.value : null;
+      if (blocked.fieldTypes.includes(item.type)) {
+        if (b) out.blockedField = blocked.value;
+        else if (item.blockedField) out.blockedField = null; // removing an empty field fails
+      }
       else tags = b ? [...withoutTag(tags, blocked.tag), blocked.tag] : withoutTag(tags, blocked.tag);
     }
     if (v !== undefined) {
@@ -146,8 +155,8 @@ export function loadProcess(config = {}, now = () => new Date()) {
       fieldDefs: fields,
       detailFields,
       transitionRules: transitions,
-      blocked: { tag: blocked.tag, fieldTypes: blocked.fieldTypes },
-      validation: { states: validation.states, tag: validation.tag, tagState: validation.tagState },
+      blocked: { tag: blocked.tag, fieldTypes: blocked.fieldTypes, column: blocked.column || null },
+      validation: { states: validation.states, tag: validation.tag, tagState: validation.tagState, column: validation.column || null },
     };
   }
 
