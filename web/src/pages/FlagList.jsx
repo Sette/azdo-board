@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api.js';
-import FilterBar, { applyFilters, emptyFilters } from '../components/FilterBar.jsx';
+import FilterBar, { applyFilters, defaultFilters } from '../components/FilterBar.jsx';
 import ItemsTable from '../components/ItemsTable.jsx';
 import { useItemParam, useMeta } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
@@ -17,7 +17,7 @@ export default function FlagList({ kind }) {
   const cfg = KINDS[kind];
   const { data: meta } = useMeta();
   const { open } = useItemParam();
-  const [filters, setFilters] = useState(emptyFilters);
+  const [filters, setFilters] = useState(defaultFilters);
   const { data: items = [], isLoading, error, isFetching, refetch } = useQuery({ queryKey: cfg.queryKey, queryFn: cfg.fetch });
   const rows = applyFilters(items, filters, meta?.me);
   const types = [...new Set(items.map((i) => i.type))];

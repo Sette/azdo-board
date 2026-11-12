@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api.js';
 import Avatar from '../components/Avatar.jsx';
 import { useOpenCreate } from '../components/CreateModal.jsx';
-import FilterBar, { applyFilters, emptyFilters } from '../components/FilterBar.jsx';
+import FilterBar, { applyFilters, defaultFilters } from '../components/FilterBar.jsx';
 import StateLozenge from '../components/StateLozenge.jsx';
 import TypeIcon from '../components/TypeIcon.jsx';
 import { fmtDate, stateCategory, sumEffort } from '../lib/format.js';
@@ -87,7 +87,7 @@ export default function Backlog() {
   const { t } = useI18n();
   const { data: meta } = useMeta();
   const { data: items = [], isLoading, error, isFetching, refetch } = useQuery({ queryKey: ['backlog'], queryFn: api.backlog });
-  const [filters, setFilters] = useState(emptyFilters);
+  const [filters, setFilters] = useState(defaultFilters);
   const [dragging, setDragging] = useState(null);
   const { open } = useItemParam();
   const openCreate = useOpenCreate();

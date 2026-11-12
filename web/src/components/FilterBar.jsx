@@ -9,12 +9,14 @@ export function applyFilters(items, f, me) {
     if (q && !`${it.id} ${it.title} ${it.tags.join(' ')}`.toLowerCase().includes(q)) return false;
     if (f.people.length && !f.people.includes(personKey(it.assignee) || '__none')) return false;
     if (f.types.length && !f.types.includes(it.type)) return false;
-    if (f.mine && it.assignee?.email !== me) return false;
+    if (f.mine && me && it.assignee?.email?.toLowerCase() !== me.toLowerCase()) return false;
     return true;
   });
 }
 
 export const emptyFilters = { q: '', people: [], types: [], mine: false };
+// Pages start with "only my issues" on; "clear filters" goes back to emptyFilters.
+export const defaultFilters = { ...emptyFilters, mine: true };
 
 export default function FilterBar({ items, filters, setFilters, me, types, children }) {
   const { t, typeLabel } = useI18n();

@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import Avatar from '../components/Avatar.jsx';
 import Card, { CardBody } from '../components/Card.jsx';
 import { useOpenCreate } from '../components/CreateModal.jsx';
-import FilterBar, { applyFilters, emptyFilters } from '../components/FilterBar.jsx';
+import FilterBar, { applyFilters, defaultFilters } from '../components/FilterBar.jsx';
 import { useSaveItem } from '../components/SaveItem.jsx';
 import StateLozenge from '../components/StateLozenge.jsx';
 import TypeIcon from '../components/TypeIcon.jsx';
@@ -49,7 +49,7 @@ export default function Board() {
   const sprintId = params.get('sprint') || meta?.currentSprintId;
   const mode = MODES[params.get('mode')] ? params.get('mode') : prefs.get('boardMode', 'items');
   const groupBy = params.get('group') || prefs.get(`boardGroup:${mode}`, mode === 'tasks' ? 'parent' : 'none');
-  const [filters, setFilters] = useState(emptyFilters);
+  const [filters, setFilters] = useState(defaultFilters);
   const [dragging, setDragging] = useState(null);
   // Escolha manual da pessoa; sem ela, raia de PBI concluído começa recolhida.
   const [collapsedLanes, setCollapsedLanes] = useState({});
