@@ -9,6 +9,9 @@ import Avatar from './Avatar.jsx';
 import { BlockedBadge } from './Card.jsx';
 import { useOpenCreate } from './CreateModal.jsx';
 import Dropdown from './Dropdown.jsx';
+import Icon from './Icon.jsx';
+import MarkdownEditor from './MarkdownEditor.jsx';
+import { ItemModalSkeleton } from './Skeleton.jsx';
 import { useSaveItem } from './SaveItem.jsx';
 import StateLozenge from './StateLozenge.jsx';
 import { useToast } from './Toast.jsx';
@@ -23,14 +26,17 @@ export default function ItemModal() {
   const { itemId, close } = useItemParam();
   useEffect(() => {
     if (!itemId) return undefined;
-    const onKey = (e) => e.key === 'Escape' && !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog]') && close();
+    const onKey = (e) =>
+      e.key === 'Escape' &&
+      !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal]') &&
+      close();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [itemId, close]);
   if (!itemId) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-[#091e427a] p-4 pt-10" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="w-full max-w-5xl rounded-md bg-surface shadow-2xl" role="dialog" aria-label={`#${itemId}`}>
+    <div className="fixed inset-0 z-40 flex items-start justify-center bg-backdrop p-4 pt-6 sm:pt-8" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-5xl flex-col overflow-hidden rounded-md border border-line bg-surface-overlay shadow-2xl" role="dialog" aria-label={`#${itemId}`}>
         <ItemView id={itemId} onClose={close} />
       </div>
     </div>
@@ -43,13 +49,15 @@ function ItemView({ id, onClose }) {
   const { data: item, isLoading, error } = useQuery({ queryKey: ['item', String(id)], queryFn: () => api.item(id) });
   const { save: saveItem, pending } = useSaveItem();
   const { open } = useItemParam();
+  const toast = useToast();
+  const [copied, setCopied] = useState(null);
 
-  if (isLoading) return <div className="p-10 text-center text-ink-muted">{t('loading')} #{id}</div>;
+  if (isLoading) return <ItemModalSkeleton id={id} />;
   if (error)
     return (
       <div className="p-10 text-center">
-        <p className="text-[#ae2e24]">{error.message}</p>
-        <button onClick={onClose} className="mt-4 text-brand">
+        <p className="text-danger-ink">{error.message}</p>
+        <button onClick={onClose} className="mt-4 text-brand-ink hover:underline">
           {t('close')}
         </button>
       </div>
@@ -60,9 +68,16 @@ function ItemView({ id, onClose }) {
   const richDefs = defsFor(meta, item.type, (d) => d.input === 'rich');
   const linkDefs = defsFor(meta, item.type, (d) => d.input === 'links');
 
+  const copyText = (kind, text, msg) => {
+    navigator.clipboard?.writeText(text);
+    setCopied(kind);
+    toast.info(msg);
+    setTimeout(() => setCopied((cur) => (cur === kind ? null : cur)), 1500);
+  };
+
   return (
     <>
-      <div className="flex items-center justify-between gap-4 px-6 pt-4 pb-2 text-sm text-ink-subtle">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-6 py-3 text-sm text-ink-subtle">
         <div className="flex min-w-0 items-center gap-1.5">
           {item.parent && (
             <>
@@ -76,43 +91,60 @@ function ItemView({ id, onClose }) {
             </>
           )}
           <TypeIcon type={item.type} size={14} />
-          <a href={item.webUrl} target="_blank" rel="noreferrer" className="shrink-0 hover:underline" title={t('openInAzure')}>
-            {typeLabel(item.type)} {item.id} ↗
+          <a href={item.webUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 hover:underline" title={t('openInAzure')}>
+            {typeLabel(item.type)} {item.id} <Icon name="external-link" size={12} />
           </a>
+          <button
+            type="button"
+            onClick={() => copyText('key', `#${item.id}`, t('copiedToast', { text: `#${item.id}` }))}
+            title={t('copyKey', { id: item.id })}
+            aria-label={t('copyKey', { id: item.id })}
+            className="rounded p-1 text-ink-muted hover:bg-hover hover:text-ink"
+          >
+            <Icon name={copied === 'key' ? 'check' : 'copy'} size={13} className={copied === 'key' ? 'text-success-ink' : ''} />
+          </button>
           {item.blocked && <BlockedBadge />}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {pending && <span className="text-xs text-ink-muted">{t('saving')}</span>}
-          <button onClick={() => navigator.clipboard?.writeText(item.webUrl)} className="rounded px-2 py-1 hover:bg-hover" title={t('copyLink')}>
-            🔗
+          <button
+            type="button"
+            onClick={() => copyText('link', item.webUrl, t('linkCopiedToast'))}
+            className="rounded p-1.5 text-ink-subtle hover:bg-hover hover:text-ink"
+            title={t('copyLink')}
+            aria-label={t('copyLink')}
+          >
+            <Icon name={copied === 'link' ? 'check' : 'link'} size={15} className={copied === 'link' ? 'text-success-ink' : ''} />
           </button>
-          <button onClick={onClose} className="rounded px-2 py-1 hover:bg-hover" aria-label={t('close')}>
-            ✕
+          <button onClick={onClose} className="rounded p-1.5 text-ink-subtle hover:bg-hover hover:text-ink" aria-label={t('close')}>
+            <Icon name="close" size={15} />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 px-6 pb-6 lg:grid-cols-[1fr_300px]">
-        <div className="min-w-0">
-          <InlineTitle value={item.title} onSave={(title) => save({ title }, { title })} />
-          <RichField label={t('description')} field={item.description} onSave={saveRich('description')} />
-          {item.type !== 'Task' && <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={saveRich('acceptanceCriteria')} />}
-          {richDefs.map((d) => (
-            <RichField
-              key={d.key}
-              label={tl(d.label)}
-              hint={tl(d.hint && typeof d.hint === 'object' && !('en' in d.hint) && !('pt' in d.hint) ? d.hint[item.type] : d.hint)}
-              field={item[d.key]}
-              onSave={saveRich(d.key)}
-            />
-          ))}
-          {linkDefs.map((d) => (
-            <LinksField key={d.key} def={d} item={item} save={save} />
-          ))}
-          {item.type !== 'Task' && <Children item={item} meta={meta} />}
-          <Comments item={item} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
+          <div className="min-w-0">
+            <InlineTitle value={item.title} onSave={(title) => save({ title }, { title })} />
+            <RichField label={t('description')} field={item.description} onSave={saveRich('description')} />
+            {item.type !== 'Task' && <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={saveRich('acceptanceCriteria')} />}
+            {richDefs.map((d) => (
+              <RichField
+                key={d.key}
+                label={tl(d.label)}
+                hint={tl(d.hint && typeof d.hint === 'object' && !('en' in d.hint) && !('pt' in d.hint) ? d.hint[item.type] : d.hint)}
+                field={item[d.key]}
+                onSave={saveRich(d.key)}
+              />
+            ))}
+            {linkDefs.map((d) => (
+              <LinksField key={d.key} def={d} item={item} save={save} />
+            ))}
+            {item.type !== 'Task' && <Children item={item} meta={meta} />}
+            <Comments item={item} />
+          </div>
+          <Details item={item} meta={meta} save={save} />
         </div>
-        <Details item={item} meta={meta} save={save} />
       </div>
     </>
   );
@@ -172,6 +204,10 @@ function RichField({ label, field, onSave, hint }) {
     if (e.target.closest('a')) return;
     start();
   };
+  const commit = () => {
+    setEditing(false);
+    onSave(draft);
+  };
   return (
     <section className="mb-6">
       <h3 className="mb-2 text-sm font-semibold text-ink-subtle">
@@ -180,22 +216,16 @@ function RichField({ label, field, onSave, hint }) {
       </h3>
       {editing ? (
         <div data-editing="true">
-          <textarea
+          <MarkdownEditor
             autoFocus
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
-            rows={Math.min(24, Math.max(6, draft.split('\n').length + 1))}
-            className="w-full rounded border-2 border-brand p-2 font-mono text-[13px] outline-none"
+            onChange={setDraft}
+            onSubmit={commit}
+            onCancel={() => setEditing(false)}
+            rows={Math.min(20, Math.max(6, draft.split('\n').length + 1))}
           />
           <div className="mt-2 flex items-center gap-2">
-            <button
-              onClick={() => {
-                setEditing(false);
-                onSave(draft);
-              }}
-              className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-            >
+            <button onClick={commit} className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
               {t('save')}
             </button>
             <button onClick={() => setEditing(false)} className="rounded-[3px] px-3 py-1.5 text-sm hover:bg-hover">
@@ -219,31 +249,40 @@ function Children({ item, meta }) {
   const { t } = useI18n();
   const openCreate = useOpenCreate();
   const { open } = useItemParam();
+  const [hideDone, setHideDone] = useState(false);
   const done = item.children.filter((c) => stateCategory(meta, c.type, c.state) === 'Completed').length;
   const hours = item.children.reduce((a, c) => a + (c.completedWork || 0), 0);
+  const visibleChildren = hideDone ? item.children.filter((c) => stateCategory(meta, c.type, c.state) !== 'Completed') : item.children;
   return (
     <section className="mb-6">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink-subtle">{t('children')}</h3>
-        <button
-          onClick={() => openCreate({ type: 'Task', parentId: item.id, iterationPath: item.iterationPath, tags: item.tags, assignee: item.assignee?.email, openAfter: false })}
-          className="rounded px-2 py-1 text-sm hover:bg-hover"
-          title={t('createChildTask')}
-        >
-          {t('childTask')}
-        </button>
+        <div className="flex items-center gap-1">
+          {item.children.length > 6 && done > 0 && (
+            <button onClick={() => setHideDone((h) => !h)} className="rounded px-2 py-1 text-xs text-ink-muted hover:bg-hover hover:text-ink">
+              {hideDone ? t('showCompleted', { n: item.children.length }) : t('hideCompleted', { n: done })}
+            </button>
+          )}
+          <button
+            onClick={() => openCreate({ type: 'Task', parentId: item.id, iterationPath: item.iterationPath, tags: item.tags, assignee: item.assignee?.email, openAfter: false })}
+            className="rounded px-2 py-1 text-sm hover:bg-hover"
+            title={t('createChildTask')}
+          >
+            {t('childTask')}
+          </button>
+        </div>
       </div>
       {item.children.length > 0 ? (
         <>
           <div className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
             <div className="h-1.5 flex-1 overflow-hidden rounded bg-column">
-              <div className="h-full bg-[#22a06b]" style={{ width: `${(done / item.children.length) * 100}%` }} />
+              <div className="h-full bg-success-solid" style={{ width: `${(done / item.children.length) * 100}%` }} />
             </div>
             {t('percentDone', { n: Math.round((done / item.children.length) * 100) })}
             <span className="ml-2">· {t('hoursLogged', { n: Math.round(hours * 100) / 100 })}</span>
           </div>
           <ul className="divide-y divide-line rounded border border-line">
-            {item.children.map((c) => (
+            {visibleChildren.map((c) => (
               <li key={c.id}>
                 <button onClick={() => open(c.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-sunken">
                   <TypeIcon type={c.type} size={14} />
@@ -251,8 +290,14 @@ function Children({ item, meta }) {
                   {c.blocked && <BlockedBadge />}
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
                   {c.type === 'Task' && (
-                    <span className="shrink-0 text-xs text-ink-muted" title="Completed Work">
-                      {c.completedWork != null ? `${c.completedWork} h` : stateCategory(meta, c.type, c.state) === 'Completed' ? '⚠ 0 h' : ''}
+                    <span className="shrink-0 text-xs text-ink-muted" title="Completed Work / Remaining Work">
+                      {c.completedWork != null
+                        ? `${c.completedWork}h${c.remainingWork != null ? ` / ${c.remainingWork}h` : ''}`
+                        : c.remainingWork != null
+                          ? `0h / ${c.remainingWork}h`
+                          : stateCategory(meta, c.type, c.state) === 'Completed'
+                            ? '⚠ 0h'
+                            : ''}
                     </span>
                   )}
                   <Avatar person={c.assignee} size={20} />
@@ -271,13 +316,20 @@ function Children({ item, meta }) {
 
 function Comments({ item }) {
   const { t, locale } = useI18n();
+  const { data: meta } = useMeta();
+  const { data: people = [] } = usePeople();
   const [text, setText] = useState('');
+  const [composing, setComposing] = useState(false);
   const qc = useQueryClient();
   const toast = useToast();
+  const mePerson =
+    people.find((p) => meta?.me && p.email?.toLowerCase() === meta.me.toLowerCase()) ||
+    (meta?.me ? { name: meta.me.split('@')[0], email: meta.me } : null);
   const add = useMutation({
     mutationFn: () => api.comment(item.id, text),
     onSuccess: (comments) => {
       setText('');
+      setComposing(false);
       qc.setQueryData(['item', String(item.id)], (old) => (old ? { ...old, comments } : old));
     },
     onError: (err) => toast.error(t('commentNotSaved', { message: err.message })),
@@ -286,20 +338,52 @@ function Comments({ item }) {
     <section>
       <h3 className="mb-3 text-sm font-semibold text-ink-subtle">{t('comments')}</h3>
       <div className="mb-5 flex gap-3">
-        <Avatar person={null} size={32} />
-        <div className="flex-1">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === 'Enter' && text.trim() && add.mutate()}
-            placeholder={t('addComment')}
-            rows={text ? 4 : 2}
-            className="w-full rounded border-2 border-line p-2 text-sm outline-none focus:border-brand"
-          />
-          {text.trim() && (
-            <button onClick={() => add.mutate()} disabled={add.isPending} className="mt-1 rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-              {add.isPending ? t('saving') : t('save')}
-            </button>
+        <Avatar person={mePerson} size={32} />
+        <div className="min-w-0 flex-1">
+          {composing || text ? (
+            <div data-editing="true">
+              <MarkdownEditor
+                compact
+                autoFocus
+                value={text}
+                onChange={setText}
+                onSubmit={() => text.trim() && add.mutate()}
+                onCancel={() => {
+                  setText('');
+                  setComposing(false);
+                }}
+                placeholder={t('addComment')}
+                rows={4}
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  onClick={() => text.trim() && add.mutate()}
+                  disabled={add.isPending || !text.trim()}
+                  className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+                >
+                  {add.isPending ? t('saving') : t('save')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setText('');
+                    setComposing(false);
+                  }}
+                  className="rounded-[3px] px-3 py-1.5 text-sm hover:bg-hover"
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <textarea
+              value={text}
+              onFocus={() => setComposing(true)}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t('addComment')}
+              rows={2}
+              className="w-full rounded border-2 border-line bg-surface p-2 text-sm outline-none focus:border-brand"
+            />
           )}
         </div>
       </div>
@@ -385,7 +469,7 @@ function TagsEditor({ tags, onSave }) {
       {tags.map((tag) => (
         <span key={tag} className="group inline-flex items-center gap-1 rounded-[3px] bg-column px-1.5 py-0.5 text-xs">
           {tag}
-          <button onClick={() => onSave(tags.filter((x) => x !== tag))} className="text-ink-muted hover:text-[#ae2e24]" aria-label={t('removeTag', { tag })}>
+          <button onClick={() => onSave(tags.filter((x) => x !== tag))} className="text-ink-muted hover:text-danger-ink" aria-label={t('removeTag', { tag })}>
             ×
           </button>
         </span>
@@ -572,21 +656,21 @@ function FlagButtons({ item, meta, save }) {
   const tagState = meta?.validation?.tagState?.[item.type];
   const typeHasValidationState = (meta?.states?.[item.type] || []).some((s) => meta?.validation?.states?.includes(s.name));
   const done = stateCategory(meta, item.type, item.state) === 'Completed';
-  const btn = 'rounded-[3px] px-2.5 py-1.5 text-sm font-medium';
+  const btn = 'inline-flex items-center gap-1.5 rounded-[3px] px-2.5 py-1.5 text-sm font-medium';
   return (
     <div className="flex flex-wrap gap-2">
       <button
         onClick={() => save({ blocked: !item.blocked }, { blocked: !item.blocked })}
-        className={`${btn} ${item.blocked ? 'bg-[#ffebe6] text-[#ae2e24] hover:bg-[#ffd5d2]' : 'bg-column text-ink-subtle hover:bg-hover'}`}
+        className={`${btn} ${item.blocked ? 'bg-danger-bg text-danger-ink hover:bg-danger-hover' : 'bg-column text-ink-subtle hover:bg-hover'}`}
       >
-        ⚑ {item.blocked ? t('unflagBlocked') : t('flagBlocked')}
+        <Icon name="flag" size={14} /> {item.blocked ? t('unflagBlocked') : t('flagBlocked')}
       </button>
       {tagState && !typeHasValidationState && !done && (
         <button
           onClick={() => save({ validation: !item.inValidation }, { inValidation: !item.inValidation, ...(item.inValidation ? {} : { state: tagState }) })}
-          className={`${btn} ${item.inValidation ? 'bg-brand-subtle text-brand' : 'bg-column text-ink-subtle hover:bg-hover'}`}
+          className={`${btn} ${item.inValidation ? 'bg-brand-subtle text-brand-ink' : 'bg-column text-ink-subtle hover:bg-hover'}`}
         >
-          ✓ {item.inValidation ? t('leaveValidation') : t('sendToValidation')}
+          <Icon name="check-circle" size={14} /> {item.inValidation ? t('leaveValidation') : t('sendToValidation')}
         </button>
       )}
     </div>
@@ -603,16 +687,16 @@ function Details({ item, meta, save }) {
   const warnings = processWarnings(item, meta, t, tl);
 
   return (
-    <aside className="space-y-4">
+    <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
       <div className="flex flex-wrap items-center gap-2">
         <Dropdown
           trigger={
             <span
-              className={`inline-flex items-center gap-1 rounded-[3px] px-3 py-1.5 text-sm font-semibold ${
-                category === 'Completed' ? 'bg-[#1f845a] text-white' : category === 'InProgress' ? 'bg-brand text-white' : 'bg-column text-ink'
+              className={`inline-flex items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-sm font-semibold ${
+                category === 'Completed' ? 'bg-success-solid text-white' : category === 'InProgress' ? 'bg-brand text-white' : 'bg-column text-ink'
               }`}
             >
-              {item.state} ▾
+              {item.state} <Icon name="chevron-down" size={13} />
             </span>
           }
           value={item.state}
@@ -628,9 +712,12 @@ function Details({ item, meta, save }) {
       </div>
       <FlagButtons item={item} meta={meta} save={save} />
       {warnings.length > 0 && (
-        <ul className="space-y-1 rounded-[3px] bg-[#fff7d6] px-3 py-2 text-xs text-[#7f5f01]">
+        <ul className="space-y-1 rounded-[3px] bg-warn-bg px-3 py-2 text-xs text-warn-ink">
           {warnings.map((w) => (
-            <li key={w}>⚠ {w}</li>
+            <li key={w} className="flex items-start gap-1.5">
+              <Icon name="warning" size={13} className="mt-0.5" />
+              <span>{w}</span>
+            </li>
           ))}
         </ul>
       )}

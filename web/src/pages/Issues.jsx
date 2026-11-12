@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
+import Avatar from '../components/Avatar.jsx';
+import Dropdown from '../components/Dropdown.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import Icon from '../components/Icon.jsx';
 import ItemsTable from '../components/ItemsTable.jsx';
+import { TableSkeleton } from '../components/Skeleton.jsx';
+import StateLozenge from '../components/StateLozenge.jsx';
 import TypeIcon from '../components/TypeIcon.jsx';
+import { stateCategory } from '../lib/format.js';
 import { useItemParam, useMeta, usePeople } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
 
@@ -92,56 +99,74 @@ export default function Issues() {
               <button
                 key={type}
                 onClick={() => toggle('types', types, type)}
-                className={`flex items-center gap-1 rounded-[3px] px-2 py-1 text-sm ${types.includes(type) ? 'bg-brand-subtle text-brand' : 'hover:bg-hover'}`}
+                className={`flex items-center gap-1 rounded-[3px] px-2 py-1 text-sm ${
+                  types.includes(type) ? 'bg-brand-subtle font-medium text-brand-ink' : 'hover:bg-hover'
+                }`}
               >
                 <TypeIcon type={type} size={14} /> {typeLabel(type)}
               </button>
             ))}
           </div>
-          <select
-            value=""
-            onChange={(e) => e.target.value && toggle('states', states, e.target.value)}
-            className="rounded-[3px] border-2 border-line px-2 py-1 text-sm"
-            aria-label={t('state')}
-          >
-            <option value="">
-              {t('state')}
-              {states.length ? `: ${states.join(', ')}` : ''}
-            </option>
-            {allStates.map((s) => (
-              <option key={s} value={s}>
-                {states.includes(s) ? '✓ ' : ''}
-                {s}
-              </option>
-            ))}
-          </select>
+          <Dropdown
+            variant="control"
+            multi
+            width="w-56"
+            value={states}
+            ariaLabel={t('state')}
+            trigger={
+              <>
+                <span className="truncate">
+                  {t('state')}
+                  {states.length ? `: ${states.join(', ')}` : ''}
+                </span>
+                <Icon name="chevron-down" size={14} className="text-ink-muted" />
+              </>
+            }
+            options={allStates.map((s) => ({
+              value: s,
+              label: s,
+              icon: <StateLozenge state="●" category={stateCategory(meta, 'Product Backlog Item', s)} />,
+            }))}
+            onSelect={(s) => toggle('states', states, s)}
+          />
           {view === 'search' && (
-            <select value={assignee} onChange={(e) => setParam({ assignee: e.target.value })} className="rounded-[3px] border-2 border-line px-2 py-1 text-sm" aria-label={t('assignee')}>
-              <option value="">{t('anyAssignee')}</option>
-              {people.map((p) => (
-                <option key={p.email} value={p.email}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              variant="control"
+              searchable
+              width="w-64"
+              value={assignee}
+              ariaLabel={t('assignee')}
+              options={[
+                { value: '', label: t('anyAssignee'), icon: <Avatar person={null} size={18} /> },
+                ...people.map((p) => ({ value: p.email, label: p.name, icon: <Avatar person={p} size={18} /> })),
+              ]}
+              onSelect={(email) => setParam({ assignee: email })}
+            />
           )}
           {view === 'mine' && (
-            <label className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={showDone} onChange={(e) => setParam({ done: e.target.checked ? '1' : '' })} /> {t('includeDone')}
+            <label className="flex cursor-pointer items-center gap-1.5 text-sm">
+              <input type="checkbox" className="accent-brand" checked={showDone} onChange={(e) => setParam({ done: e.target.checked ? '1' : '' })} /> {t('includeDone')}
             </label>
           )}
         </div>
       </header>
       <div className="flex-1 overflow-auto px-8 pb-8">
-        {query.error && <div className="mb-3 rounded bg-[#ffebe6] p-3 text-sm text-[#ae2e24]">{query.error.message}</div>}
+        {query.error && <div className="mb-3 rounded bg-danger-bg p-3 text-sm text-danger-ink">{query.error.message}</div>}
         {query.isLoading && query.fetchStatus !== 'idle' ? (
-          <p className="text-ink-muted">{t('searching')}</p>
+          <TableSkeleton rows={6} />
         ) : view === 'search' && !query.data ? (
-          <p className="text-ink-muted">{t('typeSomething')}</p>
-        ) : (
+          <EmptyState icon="search" title={t('typeSomething')} />
+        ) : rows.length ? (
           <ItemsTable rows={rows} meta={meta} onOpen={open} />
+        ) : (
+          <EmptyState
+            icon={types.length || states.length ? 'filter-off' : 'inbox'}
+            tone={types.length || states.length ? 'filtered' : 'neutral'}
+            title={t('noIssues')}
+            actionLabel={types.length || states.length ? t('clearFilters') : undefined}
+            onAction={types.length || states.length ? () => setParam({ types: [], states: [] }) : undefined}
+          />
         )}
-        {query.data && !rows.length && <p className="py-6 text-center text-ink-muted">{t('noIssues')}</p>}
       </div>
     </div>
   );

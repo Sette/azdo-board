@@ -2,6 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useCreateItem, useItemParam, useMeta, useParents, usePeople } from '../lib/hooks.js';
 import { prefs } from '../lib/format.js';
 import { useI18n } from '../lib/i18n.jsx';
+import Avatar from './Avatar.jsx';
+import Dropdown from './Dropdown.jsx';
+import Icon from './Icon.jsx';
+import MarkdownEditor from './MarkdownEditor.jsx';
 import { useToast } from './Toast.jsx';
 import TypeIcon from './TypeIcon.jsx';
 
@@ -23,14 +27,14 @@ const inputCls = 'w-full rounded-[3px] border-2 border-line bg-sunken px-2 py-1.
 
 function Field({ label, required, children, hint }) {
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1 block text-xs font-semibold text-ink-subtle">
         {label}
-        {required && <span className="ml-0.5 text-[#de350b]">*</span>}
+        {required && <span className="ml-0.5 text-danger-ink">*</span>}
       </span>
       {children}
       {hint && <span className="mt-1 block text-xs text-ink-muted">{hint}</span>}
-    </label>
+    </div>
   );
 }
 
@@ -80,8 +84,7 @@ function CreateModal({ defaults, onClose }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   // Ao escolher o pai: herda a tag de projeto; a Task herda também responsável e sprint do PBI.
-  const chooseParent = (e) => {
-    const parentId = e.target.value;
+  const chooseParent = (parentId) => {
     const p = parents.find((x) => String(x.id) === parentId);
     setForm((f) => {
       const next = { ...f, parentId };
@@ -96,14 +99,19 @@ function CreateModal({ defaults, onClose }) {
     });
   };
   const setX = (k) => (e) => setExtra((x) => ({ ...x, [k]: e.target.value }));
+  const setXVal = (k, v) => setExtra((x) => ({ ...x, [k]: v }));
 
   const sprints = meta?.sprints || [];
   const sprintOptions = [
     { value: meta?.project || '', label: t('backlogNoSprint') },
-    ...[...sprints].reverse().filter((s) => s.timeFrame !== 0 || s.path === form.iterationPath).map((s) => ({
-      value: s.path,
-      label: `${s.name}${s.timeFrame === 1 ? ` (${t('current')})` : ''}`,
-    })),
+    ...[...sprints]
+      .reverse()
+      .filter((s) => s.timeFrame !== 0 || s.path === form.iterationPath)
+      .map((s) => ({
+        value: s.path,
+        label: s.name,
+        badge: s.timeFrame === 1 ? <span className="rounded-[3px] bg-success-bg px-1.5 text-[10px] font-bold text-success-ink uppercase">{t('active')}</span> : null,
+      })),
   ];
 
   async function submit(e) {
@@ -148,17 +156,17 @@ function CreateModal({ defaults, onClose }) {
   const peopleOptions = people.some((p) => p.email === meta?.me) || !meta?.me ? people : [{ name: meta.me, email: meta.me }, ...people];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#091e427a] p-4 pt-12" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form onSubmit={submit} className="w-full max-w-2xl rounded-md bg-surface shadow-2xl" aria-label={t('createTitle')} data-create-modal="true">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-backdrop p-4 pt-12" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <form onSubmit={submit} className="w-full max-w-2xl rounded-md border border-line bg-surface-overlay shadow-2xl" aria-label={t('createTitle')} data-create-modal="true">
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-xl font-medium">{t('createTitle')}</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-ink-muted hover:bg-hover" aria-label={t('close')}>
-            ✕
+          <button type="button" onClick={onClose} className="rounded p-1.5 text-ink-muted hover:bg-hover hover:text-ink" aria-label={t('close')}>
+            <Icon name="close" size={16} />
           </button>
         </div>
         <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-4">
           <Field label={t('type')} required>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(meta?.createTypes || meta?.types || []).map((ty) => (
                 <button
                   type="button"
@@ -167,7 +175,9 @@ function CreateModal({ defaults, onClose }) {
                     setType(ty);
                     setForm((f) => ({ ...f, parentId: ty === type ? f.parentId : defaults.type === ty ? f.parentId : '' }));
                   }}
-                  className={`flex items-center gap-2 rounded-[3px] border-2 px-3 py-1.5 text-sm ${ty === type ? 'border-brand bg-brand-subtle' : 'border-line hover:bg-hover'}`}
+                  className={`flex items-center gap-2 rounded-[3px] border-2 px-3 py-1.5 text-sm ${
+                    ty === type ? 'border-brand bg-brand-subtle font-medium text-brand-ink' : 'border-line hover:bg-hover'
+                  }`}
                 >
                   <TypeIcon type={ty} /> {typeLabel(ty)}
                 </button>
@@ -178,41 +188,55 @@ function CreateModal({ defaults, onClose }) {
             <input autoFocus value={form.title} onChange={set('title')} className={inputCls} maxLength={255} />
           </Field>
           <Field label={t('description')} required={rules.descriptionRequired} hint={t('markdownOk')}>
-            <textarea value={form.description} onChange={set('description')} rows={5} className={`${inputCls} font-mono text-[13px]`} />
+            <MarkdownEditor compact value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} rows={4} />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t('assignee')}>
-              <select value={form.assignee} onChange={set('assignee')} className={inputCls}>
-                <option value="">{t('unassigned')}</option>
-                {peopleOptions.map((p) => (
-                  <option key={p.email} value={p.email}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <Dropdown
+                variant="input"
+                width="w-full"
+                searchable
+                value={form.assignee}
+                ariaLabel={t('assignee')}
+                options={[
+                  { value: '', label: t('unassigned'), icon: <Avatar person={null} size={20} /> },
+                  ...peopleOptions.map((p) => ({ value: p.email, label: p.name, icon: <Avatar person={p} size={20} /> })),
+                ]}
+                onSelect={(email) => setForm((f) => ({ ...f, assignee: email }))}
+              />
             </Field>
             <Field label={t('sprint')}>
-              <select value={form.iterationPath} onChange={set('iterationPath')} className={inputCls}>
-                {sprintOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <Dropdown
+                variant="input"
+                width="w-full"
+                value={form.iterationPath}
+                ariaLabel={t('sprint')}
+                options={sprintOptions}
+                onSelect={(iterationPath) => setForm((f) => ({ ...f, iterationPath }))}
+              />
             </Field>
             {rules.parentType && (
               <Field label={t('parent', { type: typeLabel(rules.parentType) })} required={rules.parentRequired}>
-                <select value={form.parentId} onChange={chooseParent} className={inputCls}>
-                  <option value="">{loadingParents ? t('loading') : t('none')}</option>
-                  {defaults.parentId && !parents.some((p) => p.id === Number(defaults.parentId)) && (
-                    <option value={String(defaults.parentId)}>#{defaults.parentId}</option>
-                  )}
-                  {parents.map((p) => (
-                    <option key={p.id} value={String(p.id)}>
-                      #{p.id} {p.title}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown
+                  variant="input"
+                  width="w-full"
+                  searchable
+                  placeholder={loadingParents ? t('loading') : t('none')}
+                  value={form.parentId}
+                  ariaLabel={t('parent', { type: typeLabel(rules.parentType) })}
+                  options={[
+                    { value: '', label: loadingParents ? t('loading') : t('none') },
+                    ...(defaults.parentId && !parents.some((p) => p.id === Number(defaults.parentId))
+                      ? [{ value: String(defaults.parentId), label: `#${defaults.parentId}` }]
+                      : []),
+                    ...parents.map((p) => ({
+                      value: String(p.id),
+                      label: `#${p.id} ${p.title}`,
+                      icon: <TypeIcon type={p.type || rules.parentType} size={14} />,
+                    })),
+                  ]}
+                  onSelect={chooseParent}
+                />
               </Field>
             )}
             {planningDef && (
@@ -223,7 +247,9 @@ function CreateModal({ defaults, onClose }) {
                       type="button"
                       key={o}
                       onClick={() => setForm((f) => ({ ...f, planning: o }))}
-                      className={`flex-1 rounded-[3px] border-2 px-3 py-1.5 text-sm ${form.planning === o ? 'border-brand bg-brand-subtle' : 'border-line hover:bg-hover'}`}
+                      className={`flex-1 rounded-[3px] border-2 px-3 py-1.5 text-sm ${
+                        form.planning === o ? 'border-brand bg-brand-subtle font-medium text-brand-ink' : 'border-line hover:bg-hover'
+                      }`}
                     >
                       {o}
                     </button>
@@ -236,26 +262,28 @@ function CreateModal({ defaults, onClose }) {
             </Field>
             {defs.map((d) => (
               <div key={d.key} className={d.input === 'rich' ? 'sm:col-span-2' : ''}>
-              <Field label={tl(d.label)} required={d.required} hint={d.input === 'rich' ? t('markdownOk') : undefined}>
-                {d.input === 'rich' ? (
-                  <textarea value={extra[d.key] ?? ''} onChange={setX(d.key)} rows={4} className={`${inputCls} font-mono text-[13px]`} />
-                ) : d.options ? (
-                  <select value={extra[d.key] ?? ''} onChange={setX(d.key)} className={inputCls}>
-                    <option value="">{t('select')}</option>
-                    {d.options.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input type={d.input === 'number' ? 'number' : 'text'} min="0" step="any" value={extra[d.key] ?? ''} onChange={setX(d.key)} className={inputCls} />
-                )}
-              </Field>
+                <Field label={tl(d.label)} required={d.required} hint={d.input === 'rich' ? t('markdownOk') : undefined}>
+                  {d.input === 'rich' ? (
+                    <MarkdownEditor compact value={extra[d.key] ?? ''} onChange={(v) => setXVal(d.key, v)} rows={4} />
+                  ) : d.options ? (
+                    <Dropdown
+                      variant="input"
+                      width="w-full"
+                      searchable={d.options.length > 8}
+                      placeholder={t('select')}
+                      value={extra[d.key] === '' || extra[d.key] === undefined ? null : String(extra[d.key])}
+                      options={d.options.map((o) => ({ value: o, label: o }))}
+                      onSelect={(v) => setXVal(d.key, v)}
+                      ariaLabel={tl(d.label)}
+                    />
+                  ) : (
+                    <input type={d.input === 'number' ? 'number' : 'text'} min="0" step="any" value={extra[d.key] ?? ''} onChange={setX(d.key)} className={inputCls} />
+                  )}
+                </Field>
               </div>
             ))}
           </div>
-          {error && <div className="rounded-[3px] bg-[#ffebe6] px-3 py-2 text-sm text-[#ae2e24]">{error}</div>}
+          {error && <div className="rounded-[3px] bg-danger-bg px-3 py-2 text-sm text-danger-ink">{error}</div>}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-6 py-3">
           <button type="button" onClick={onClose} className="rounded-[3px] px-3 py-1.5 text-sm font-medium text-ink-subtle hover:bg-hover">

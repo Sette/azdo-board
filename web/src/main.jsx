@@ -8,6 +8,7 @@ import { SaveItemProvider } from './components/SaveItem.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import { useMeta } from './lib/hooks.js';
 import { LangProvider } from './lib/i18n.jsx';
+import { ThemeProvider } from './lib/theme.jsx';
 import './index.css';
 
 // Idioma padrão vem de APP_LANG (meta); a escolha na tela tem prioridade.
@@ -24,18 +25,20 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <LangFromMeta>
-        <ToastProvider>
-          <SaveItemProvider>
-            <CreateProvider>
-              <App />
-            </CreateProvider>
-          </SaveItemProvider>
-        </ToastProvider>
-        </LangFromMeta>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <LangFromMeta>
+            <ToastProvider>
+              <SaveItemProvider>
+                <CreateProvider>
+                  <App />
+                </CreateProvider>
+              </SaveItemProvider>
+            </ToastProvider>
+          </LangFromMeta>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

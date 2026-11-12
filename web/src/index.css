@@ -4,15 +4,82 @@
   --color-brand: #0052cc;
   --color-brand-hover: #0065ff;
   --color-brand-subtle: #deebff;
+  --color-brand-ink: #0747a6;
+
   --color-ink: #172b4d;
   --color-ink-subtle: #44546f;
   --color-ink-muted: #626f86;
+
   --color-surface: #ffffff;
+  --color-surface-overlay: #ffffff;
   --color-sunken: #f7f8f9;
   --color-column: #f1f2f4;
-  --color-line: #dcdfe4;
   --color-hover: #ebecf0;
+  --color-line: #dcdfe4;
+
+  --color-neutral-bg: #dfe1e6;
+  --color-neutral-ink: #42526e;
+
+  --color-danger-bg: #ffebe6;
+  --color-danger-hover: #ffd5d2;
+  --color-danger-ink: #ae2e24;
+  --color-danger-border: #e2483d;
+  --color-danger-solid: #c9372c;
+  --color-danger-column: #fff1ef;
+
+  --color-warn-bg: #fff7d6;
+  --color-warn-ink: #7f5f01;
+  --color-warn-border: #e2b203;
+
+  --color-success-bg: #dcfff1;
+  --color-success-ink: #216e4e;
+  --color-success-solid: #1f845a;
+
+  --color-backdrop: #091e427a;
+  --shadow-card: 0 1px 1px #091e4240, 0 0 1px #091e424f;
+  --shadow-card-hover: 0 4px 8px -2px #091e4240, 0 0 1px #091e424f;
+
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html[data-theme='dark'] {
+  --color-brand: #1f6feb;
+  --color-brand-hover: #388bfd;
+  --color-brand-subtle: #1c2b41;
+  --color-brand-ink: #79c0ff;
+
+  --color-ink: #dee4ea;
+  --color-ink-subtle: #9fadbc;
+  --color-ink-muted: #8c9bab;
+
+  --color-surface: #1d2125;
+  --color-surface-overlay: #282e33;
+  --color-sunken: #161a1d;
+  --color-column: #22272b;
+  --color-hover: #2c333a;
+  --color-line: #38414a;
+
+  --color-neutral-bg: #2c333a;
+  --color-neutral-ink: #b6c2cf;
+
+  --color-danger-bg: #42221f;
+  --color-danger-hover: #5d2a27;
+  --color-danger-ink: #fd9891;
+  --color-danger-border: #f87168;
+  --color-danger-solid: #c9372c;
+  --color-danger-column: #2a1918;
+
+  --color-warn-bg: #332e1b;
+  --color-warn-ink: #f5cd47;
+  --color-warn-border: #946f00;
+
+  --color-success-bg: #1c3329;
+  --color-success-ink: #7ee2b8;
+  --color-success-solid: #216e4e;
+
+  --color-backdrop: #030404ad;
+  --shadow-card: 0 1px 1px #03040480, 0 0 1px #030404a0;
+  --shadow-card-hover: 0 4px 10px -2px #030404b3, 0 0 1px #030404d9;
 }
 
 html,
@@ -25,6 +92,13 @@ body {
   background: var(--color-surface);
   color: var(--color-ink);
   font-size: 14px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
 }
 
 .prose-azdo {
@@ -68,7 +142,7 @@ body {
 .prose-azdo h1 { font-size: 1.25em; }
 .prose-azdo h2 { font-size: 1.12em; }
 .prose-azdo a {
-  color: var(--color-brand);
+  color: var(--color-brand-ink);
   text-decoration: underline;
 }
 .prose-azdo code {
@@ -89,5 +163,11 @@ body {
 .prose-azdo th {
   border: 1px solid var(--color-line);
   padding: 4px 8px;
+}
+.prose-azdo blockquote {
+  border-left: 3px solid var(--color-line);
+  color: var(--color-ink-subtle);
+  margin: 0 0 0.6em;
+  padding-left: 0.75em;
 }
 .prose-azdo img { max-width: 100%; }

@@ -1,42 +1,112 @@
 import { useDraggable } from '@dnd-kit/core';
 import Avatar from './Avatar.jsx';
+import Icon from './Icon.jsx';
+import { useToast } from './Toast.jsx';
 import TypeIcon from './TypeIcon.jsx';
 import { useI18n } from '../lib/i18n.jsx';
 
 export function BlockedBadge() {
   const { t } = useI18n();
   return (
-    <span className="inline-flex items-center gap-1 rounded-[3px] bg-[#ffebe6] px-1.5 text-[11px] font-bold text-[#ae2e24] uppercase">
-      ⚑ {t('blocked')}
+    <span className="inline-flex items-center gap-1 rounded-[3px] bg-danger-bg px-1.5 py-px text-[11px] font-bold text-danger-ink uppercase">
+      <Icon name="flag" size={11} /> {t('blocked')}
     </span>
   );
 }
 
-export function CardBody({ item, parent, dragging }) {
+export function PriorityBadge({ priority }) {
+  const { t } = useI18n();
+  if (priority == null) return null;
+  const p = Number(priority);
+  const tone =
+    p === 1
+      ? 'text-danger-ink'
+      : p === 2
+        ? 'text-warn-ink'
+        : p === 3
+          ? 'text-brand-ink'
+          : 'text-ink-muted';
+  const name = p >= 1 && p <= 4 ? `priority-${p}` : 'priority-3';
+  return (
+    <span title={t('priorityValue', { n: p })} className={`inline-flex items-center ${tone}`}>
+      <Icon name={name} size={14} />
+    </span>
+  );
+}
+
+export function CardBody({ item, parent, dragging, showValidationBadge = false, planningOptions = [] }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const visibleTags = item.tags.slice(0, 3);
+  const extraTags = item.tags.slice(3);
+
+  const copyId = (e) => {
+    e.stopPropagation();
+    const ref = `#${item.id}`;
+    navigator.clipboard?.writeText(ref);
+    toast?.info(t('copiedToast', { text: ref }));
+  };
+
   return (
     <div
-      className={`rounded-[3px] bg-surface p-3 text-left shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] ${item.blocked ? 'border-l-4 border-[#e2483d]' : ''} ${dragging ? 'rotate-2 shadow-xl' : 'hover:bg-sunken'}`}
+      className={`group relative rounded-[3px] bg-surface-overlay p-3 text-left shadow-card transition-shadow duration-150 ${
+        item.blocked ? 'border-l-4 border-danger-border' : ''
+      } ${dragging ? 'rotate-2 shadow-2xl ring-2 ring-brand/40' : 'hover:bg-hover/60 hover:shadow-card-hover'}`}
     >
-      {item.blocked && (
-        <div className="mb-1.5">
-          <BlockedBadge />
-        </div>
+      {!dragging && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={copyId}
+          title={t('copyKey', { id: item.id })}
+          aria-label={t('copyKey', { id: item.id })}
+          className="absolute top-2 right-2 rounded bg-surface/90 p-1 text-ink-muted opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:bg-hover hover:text-ink focus:opacity-100"
+        >
+          <Icon name="copy" size={12} />
+        </button>
       )}
-      <p className="mb-2 line-clamp-3 text-sm">{item.title}</p>
-      {parent && <p className="mb-2 truncate text-[11px] text-ink-muted">↳ {parent.title}</p>}
-      {item.tags.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1">
-          {item.tags.slice(0, 3).map((t) => (
-            <span key={t} className="rounded-[3px] bg-column px-1.5 text-[11px] text-ink-subtle">
-              {t}
+      {(item.blocked || (showValidationBadge && item.inValidation)) && (
+        <div className="mb-1.5 flex flex-wrap items-center gap-1 pr-5">
+          {item.blocked && <BlockedBadge />}
+          {showValidationBadge && item.inValidation && (
+            <span className="inline-flex items-center gap-1 rounded-[3px] bg-brand-subtle px-1.5 py-px text-[11px] font-bold text-brand-ink uppercase">
+              <Icon name="check-circle" size={11} /> {t('inValidation')}
             </span>
-          ))}
+          )}
         </div>
       )}
-      <div className="flex items-center gap-2">
+      <p className="mb-2 line-clamp-3 pr-4 text-sm leading-snug">{item.title}</p>
+      {parent && <p className="mb-2 truncate text-[11px] text-ink-muted">↳ {parent.title}</p>}
+      {visibleTags.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1">
+          {visibleTags.map((tag) => {
+            const isPlanning = planningOptions.includes(tag);
+            return (
+              <span
+                key={tag}
+                className={`rounded-[3px] px-1.5 text-[11px] ${
+                  isPlanning ? 'border border-line bg-sunken font-medium text-ink-subtle' : 'bg-column text-ink-subtle'
+                }`}
+              >
+                {tag}
+              </span>
+            );
+          })}
+          {extraTags.length > 0 && (
+            <span
+              title={t('moreTags', { n: extraTags.length, tags: extraTags.join(', ') })}
+              className="rounded-[3px] bg-column px-1.5 text-[11px] font-medium text-ink-muted"
+            >
+              +{extraTags.length}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
         <TypeIcon type={item.type} size={14} />
         <span className="text-xs font-medium text-ink-muted">{item.id}</span>
         <span className="flex-1" />
+        <PriorityBadge priority={item.priority} />
         {item.type === 'Task'
           ? (item.completedWork != null || item.remainingWork != null) && (
               <span className="rounded-full bg-column px-1.5 text-[11px] font-semibold text-ink-subtle" title="Completed Work / Remaining Work">
@@ -54,7 +124,7 @@ export function CardBody({ item, parent, dragging }) {
   );
 }
 
-export default function Card({ item, parent, onOpen }) {
+export default function Card({ item, parent, onOpen, showValidationBadge, planningOptions }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: String(item.id), data: { item } });
   return (
     <div
@@ -62,10 +132,10 @@ export default function Card({ item, parent, onOpen }) {
       {...attributes}
       {...listeners}
       onClick={() => onOpen(item.id)}
-      onKeyDown={(e) => e.key === 'Enter' && onOpen(item.id)}
-      className={`cursor-pointer touch-none ${isDragging ? 'opacity-30' : ''}`}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(item.id))}
+      className={`cursor-pointer touch-none rounded-[3px] ${isDragging ? 'opacity-30' : ''}`}
     >
-      <CardBody item={item} parent={parent} />
+      <CardBody item={item} parent={parent} showValidationBadge={showValidationBadge} planningOptions={planningOptions} />
     </div>
   );
 }

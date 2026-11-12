@@ -6,8 +6,12 @@ import { api } from '../api.js';
 import Avatar from '../components/Avatar.jsx';
 import Card, { CardBody } from '../components/Card.jsx';
 import { useOpenCreate } from '../components/CreateModal.jsx';
-import FilterBar, { applyFilters, defaultFilters } from '../components/FilterBar.jsx';
+import Dropdown from '../components/Dropdown.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import FilterBar, { applyFilters, defaultFilters, emptyFilters } from '../components/FilterBar.jsx';
+import Icon from '../components/Icon.jsx';
 import { useSaveItem } from '../components/SaveItem.jsx';
+import { BoardSkeleton } from '../components/Skeleton.jsx';
 import StateLozenge from '../components/StateLozenge.jsx';
 import TypeIcon from '../components/TypeIcon.jsx';
 import { fmtDate, personKey, prefs, stateCategory, sumEffort } from '../lib/format.js';
@@ -22,13 +26,22 @@ const MODES = {
 const BLOCKED = '__blocked';
 const VALIDATION = '__validation';
 
+function categoryDot(category, kind) {
+  if (kind === 'blocked') return 'bg-danger-border';
+  if (category === 'Completed') return 'bg-success-solid';
+  if (category === 'InProgress') return 'bg-brand';
+  return 'bg-ink-muted/60';
+}
+
 function Column({ id, label, items, renderCard, minimized, onExpand, tone }) {
   const { t } = useI18n();
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-24 flex-col gap-1.5 rounded-md p-1.5 transition-colors ${isOver ? 'bg-brand-subtle' : tone === 'blocked' ? 'bg-[#fff1ef]' : 'bg-column'}`}
+      className={`flex min-h-24 flex-col gap-1.5 rounded-md p-1.5 transition-shadow ${
+        isOver ? 'bg-brand-subtle ring-2 ring-brand/40' : tone === 'blocked' ? 'bg-danger-column' : 'bg-column'
+      }`}
       aria-label={label}
     >
       {minimized && items.length > 0 ? (
@@ -76,6 +89,7 @@ export default function Board() {
   const cfg = MODES[mode];
   const validationStates = meta?.validation?.states || [];
   const tagState = meta?.validation?.tagState?.[cfg.statesOf];
+  const planningOptions = meta?.planning?.options || [];
 
   // Tasks mode follows the team's sprint board (taskboard) columns when the team customized them.
   const board = mode === 'tasks' ? meta?.taskboard : null;
@@ -89,7 +103,7 @@ export default function Board() {
         label: c.name,
         state: c.mappings.Task,
         category: stateCategory(meta, 'Task', c.mappings.Task),
-        kind: c.name === blockedColumn ? 'blocked' : 'state',
+        kind: c.name === blockedColumn ? 'blocked' : c.name === meta?.validation?.column ? 'validation' : 'state',
       }));
       if (!cols.some((c) => c.kind === 'blocked')) {
         const firstDone = cols.findIndex((c) => c.category === 'Completed');
@@ -98,7 +112,12 @@ export default function Board() {
       return cols;
     }
     const states = (meta?.states?.[cfg.statesOf] || []).filter((s) => s.category !== 'Removed');
-    const cols = states.map((s) => ({ id: s.name, label: s.name, category: s.category, kind: 'state' }));
+    const cols = states.map((s) => ({
+      id: s.name,
+      label: s.name,
+      category: s.category,
+      kind: validationStates.includes(s.name) ? 'validation' : 'state',
+    }));
     const hasValidationState = states.some((s) => validationStates.includes(s.name));
     const firstDone = Math.max(0, cols.findIndex((c) => c.category === 'Completed'));
     const extra = [];
@@ -149,6 +168,12 @@ export default function Board() {
     return [{ key: 'all', items: visible }];
   }, [visible, groupBy, byId, t, locale]);
 
+  const anyExpanded = groupBy !== 'none' && lanes.some((l) => !isCollapsed(l));
+  const toggleAllLanes = () => {
+    const collapse = anyExpanded;
+    setCollapsedLanes(Object.fromEntries(lanes.map((l) => [l.key, collapse])));
+  };
+
   const setParam = (k, v, prefKey) => {
     if (prefKey) prefs.set(prefKey, v);
     setParams((p) => {
@@ -166,8 +191,6 @@ export default function Board() {
     if (!target || target === columnOf(item)) return;
     const col = board && columns.find((c) => c.id === target);
     if (col?.state) {
-      // Taskboard column: change the state when the column needs it, then set the column.
-      // The blocked column also sets the Blocked flag; leaving it clears the flag.
       const toBlocked = col.kind === 'blocked';
       const changes = { column: col.id };
       if (col.state !== item.state) changes.state = col.state;
@@ -193,9 +216,19 @@ export default function Board() {
     save(item, changes, { state: target, blocked: false, inValidation: validationStates.includes(target) });
   }
 
-  const renderCard = (it) => (
-    <Card key={it.id} item={it} parent={groupBy !== 'parent' && mode === 'tasks' ? byId.get(it.parentId) : null} onOpen={open} />
-  );
+  const renderCard = (it) => {
+    const col = columns.find((c) => c.id === columnOf(it));
+    return (
+      <Card
+        key={it.id}
+        item={it}
+        parent={groupBy !== 'parent' && mode === 'tasks' ? byId.get(it.parentId) : null}
+        onOpen={open}
+        showValidationBadge={col?.kind !== 'validation'}
+        planningOptions={planningOptions}
+      />
+    );
+  };
 
   const daysLeft = sprint?.finishDate ? Math.ceil((new Date(sprint.finishDate) - new Date()) / 86_400_000) : null;
   const grid = { gridTemplateColumns: `repeat(${columns.length}, 272px)` };
@@ -215,27 +248,21 @@ export default function Board() {
             </span>
           )}
           <span className="flex-1" />
-          <select
+          <Dropdown
+            variant="control"
+            align="right"
+            width="w-60"
             value={sprintId || ''}
-            onChange={(e) => setParam('sprint', e.target.value)}
-            className="rounded-[3px] border-2 border-line px-2 py-1 text-sm outline-none focus:border-brand"
-            aria-label={t('sprint')}
-          >
-            {[...(meta?.sprints || [])].reverse().map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.timeFrame === 1 ? ` (${t('current')})` : ''}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => openCreate({ type: mode === 'tasks' ? 'Task' : undefined, iterationPath: sprint?.path })}
-            className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-          >
-            {t('create')}
-          </button>
+            ariaLabel={t('sprint')}
+            options={[...(meta?.sprints || [])].reverse().map((s) => ({
+              value: s.id,
+              label: `${s.name}${s.timeFrame === 1 ? ` (${t('current')})` : ''}`,
+              badge: s.timeFrame === 1 ? <span className="rounded-[3px] bg-success-bg px-1.5 text-[10px] font-bold text-success-ink uppercase">{t('active')}</span> : null,
+            }))}
+            onSelect={(id) => setParam('sprint', id)}
+          />
         </div>
-        <FilterBar items={modeItems} filters={filters} setFilters={setFilters} me={meta?.me} types={cfg.types}>
+        <FilterBar items={modeItems} shownCount={visible.length} filters={filters} setFilters={setFilters} me={meta?.me} types={cfg.types}>
           <span className="flex-1" />
           <div className="flex rounded-[3px] bg-column p-0.5 text-sm">
             {Object.entries(MODES).map(([k, m]) => (
@@ -248,105 +275,171 @@ export default function Board() {
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-1 text-sm text-ink-subtle">
-            {t('groupBy')}
-            <select
+          <div className="flex items-center gap-1.5 text-sm text-ink-subtle">
+            <span>{t('groupBy')}</span>
+            <Dropdown
+              variant="control"
+              align="right"
+              width="w-44"
               value={groupBy}
-              onChange={(e) => setParam('group', e.target.value, `boardGroup:${mode}`)}
-              className="rounded-[3px] border-2 border-line px-1 py-0.5 text-sm outline-none focus:border-brand"
-            >
-              <option value="none">{t('groupNone')}</option>
-              <option value="assignee">{t('groupAssignee')}</option>
-              {mode === 'tasks' && <option value="parent">{t('groupParent')}</option>}
-            </select>
-          </label>
-          <button onClick={() => refetch()} className="rounded-[3px] px-2 py-1 text-sm hover:bg-hover" title={t('reload')}>
-            {isFetching ? '⟳ …' : '⟳'}
+              ariaLabel={t('groupBy')}
+              options={[
+                { value: 'none', label: t('groupNone') },
+                { value: 'assignee', label: t('groupAssignee') },
+                ...(mode === 'tasks' ? [{ value: 'parent', label: t('groupParent') }] : []),
+              ]}
+              onSelect={(v) => setParam('group', v, `boardGroup:${mode}`)}
+            />
+          </div>
+          {groupBy !== 'none' && lanes.length > 1 && (
+            <button onClick={toggleAllLanes} className="rounded-[3px] px-2 py-1 text-xs font-medium text-ink-subtle hover:bg-hover hover:text-ink">
+              {anyExpanded ? t('collapseAll') : t('expandAll')}
+            </button>
+          )}
+          <button onClick={() => refetch()} className="rounded-[3px] p-1.5 text-ink-subtle hover:bg-hover hover:text-ink" title={t('reload')} aria-label={t('reload')}>
+            <Icon name="refresh" size={16} className={isFetching ? 'animate-spin' : ''} />
           </button>
         </FilterBar>
       </header>
 
-      {error && <div className="mx-8 rounded bg-[#ffebe6] p-3 text-sm text-[#ae2e24]">{error.message}</div>}
+      {error && <div className="mx-8 rounded bg-danger-bg p-3 text-sm text-danger-ink">{error.message}</div>}
       {isLoading ? (
-        <div className="px-8 text-ink-muted">{t('loadingSprint')}</div>
+        <BoardSkeleton />
       ) : (
         <DndContext sensors={sensors} onDragStart={({ active }) => setDragging(active.data.current.item)} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
           <div className="flex-1 overflow-auto px-8 pb-8">
             <div className="min-w-max">
-              <div className="sticky top-0 z-10 grid gap-2 bg-surface pb-2" style={grid}>
+              <div className="sticky top-0 z-10 grid gap-2 bg-surface pb-1.5" style={grid}>
                 {columns.map((c) => {
                   const n = visible.filter((it) => columnOf(it) === c.id);
+                  const pts = mode === 'items' ? sumEffort(n) : 0;
+                  const doneHours = mode === 'tasks' ? Math.round(n.reduce((a, x) => a + (x.completedWork || 0), 0) * 10) / 10 : 0;
+                  const leftHours = mode === 'tasks' ? Math.round(n.reduce((a, x) => a + (x.remainingWork || 0), 0) * 10) / 10 : 0;
                   return (
                     <div
                       key={c.id}
-                      className={`rounded-t-md px-3 pt-2.5 pb-1 text-xs font-semibold tracking-wide uppercase ${c.kind === 'blocked' ? 'bg-[#fff1ef] text-[#ae2e24]' : 'bg-column text-ink-subtle'}`}
+                      className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-xs font-semibold tracking-wide uppercase ${
+                        c.kind === 'blocked' ? 'bg-danger-column text-danger-ink' : 'bg-column text-ink-subtle'
+                      }`}
                     >
-                      {c.kind === 'blocked' ? '⚑ ' : ''}
-                      {c.label} <span className="ml-1 font-normal">{n.length}</span>
-                      {mode === 'items' && c.category === 'Completed' && n.length > 0 && (
-                        <button onClick={toggleShowDone} className="ml-2 font-normal normal-case text-brand hover:underline">
-                          {showDone ? t('hide') : t('show')}
-                        </button>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        {c.kind === 'blocked' ? (
+                          <Icon name="flag" size={12} />
+                        ) : (
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${categoryDot(c.category, c.kind)}`} />
+                        )}
+                        <span className="truncate">{c.label}</span>
+                        <span className="rounded-full bg-surface px-1.5 py-px text-[11px] font-semibold text-ink-subtle">{n.length}</span>
+                        {mode === 'items' && c.category === 'Completed' && n.length > 0 && (
+                          <button onClick={toggleShowDone} className="ml-1 font-normal normal-case text-brand-ink hover:underline">
+                            {showDone ? t('hide') : t('show')}
+                          </button>
+                        )}
+                      </div>
+                      {mode === 'items' && pts > 0 && <span className="shrink-0 font-normal normal-case text-ink-muted">{t('pts', { n: pts })}</span>}
+                      {mode === 'tasks' && (doneHours > 0 || leftHours > 0) && (
+                        <span className="shrink-0 font-normal normal-case text-ink-muted">
+                          {leftHours > 0 ? t('hoursSummary', { done: doneHours, left: leftHours }) : `${doneHours}h`}
+                        </span>
                       )}
-                      {mode === 'items' && sumEffort(n) > 0 && <span className="float-right font-normal normal-case">{t('pts', { n: sumEffort(n) })}</span>}
                     </div>
                   );
                 })}
               </div>
-              {lanes.map((lane) => (
-                <div key={lane.key} className="mb-3">
-                  {groupBy !== 'none' && (
-                    <button
-                      onClick={() => setCollapsedLanes((c) => ({ ...c, [lane.key]: !isCollapsed(lane) }))}
-                      className="mb-1.5 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-sm hover:bg-hover"
-                    >
-                      <span className="w-3 text-ink-muted">{isCollapsed(lane) ? '▸' : '▾'}</span>
-                      {lane.parent && <TypeIcon type={lane.parent.type} size={14} />}
-                      {groupBy === 'assignee' && <Avatar person={lane.person} size={20} />}
-                      {lane.parent && <span className="text-ink-muted">{lane.parent.id}</span>}
-                      <span className="truncate font-medium">{lane.title}</span>
-                      <span className="text-xs text-ink-muted">({lane.items.length})</span>
-                      {parentDone(lane) && <StateLozenge state={lane.parent.state} category="Completed" />}
-                      {lane.parent && (
-                        <span
-                          role="link"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            open(lane.parent.id);
-                          }}
-                          className="ml-1 text-xs text-brand hover:underline"
+              {lanes.map((lane) => {
+                const laneDoneTasks = lane.items.filter((it) => stateCategory(meta, it.type, it.state) === 'Completed').length;
+                return (
+                  <div key={lane.key} className="mb-3">
+                    {groupBy !== 'none' && (
+                      <div className="mb-1.5 flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-hover">
+                        <button
+                          type="button"
+                          onClick={() => setCollapsedLanes((c) => ({ ...c, [lane.key]: !isCollapsed(lane) }))}
+                          className="flex min-w-0 items-center gap-2 text-left"
                         >
-                          {t('open')}
-                        </span>
-                      )}
-                    </button>
-                  )}
-                  {!isCollapsed(lane) && (
-                    <div className="grid gap-2" style={grid}>
-                      {columns.map((c) => (
-                        <Column
-                          key={c.id}
-                          id={`${lane.key}::${c.id}`}
-                          label={c.label}
-                          tone={c.kind}
-                          items={lane.items.filter((it) => columnOf(it) === c.id)}
-                          renderCard={renderCard}
-                          minimized={mode === 'items' && c.category === 'Completed' && !showDone}
-                          onExpand={toggleShowDone}
-                        />
-                      ))}
-                    </div>
-                  )}
+                          <Icon name={isCollapsed(lane) ? 'chevron-right' : 'chevron-down'} size={14} className="text-ink-muted" />
+                          {lane.parent && <TypeIcon type={lane.parent.type} size={14} />}
+                          {groupBy === 'assignee' && <Avatar person={lane.person} size={20} />}
+                          {lane.parent && <span className="text-ink-muted">{lane.parent.id}</span>}
+                          <span className="truncate font-medium">{lane.title}</span>
+                          <span className="text-xs text-ink-muted">
+                            ({laneDoneTasks}/{lane.items.length})
+                          </span>
+                        </button>
+                        {lane.items.length > 0 && (
+                          <div className="hidden h-1.5 w-16 overflow-hidden rounded bg-column sm:block" title={`${laneDoneTasks}/${lane.items.length}`}>
+                            <div className="h-full bg-success-solid" style={{ width: `${(laneDoneTasks / lane.items.length) * 100}%` }} />
+                          </div>
+                        )}
+                        {lane.parent && (
+                          <>
+                            <StateLozenge state={lane.parent.state} category={stateCategory(meta, lane.parent.type, lane.parent.state)} />
+                            {lane.parent.assignee && <Avatar person={lane.parent.assignee} size={18} />}
+                            <button
+                              type="button"
+                              onClick={() => open(lane.parent.id)}
+                              className="text-xs text-brand-ink hover:underline"
+                            >
+                              {t('open')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openCreate({
+                                  type: 'Task',
+                                  parentId: lane.parent.id,
+                                  iterationPath: sprint?.path,
+                                  tags: lane.parent.tags,
+                                  assignee: lane.parent.assignee?.email,
+                                  openAfter: false,
+                                })
+                              }
+                              title={t('createChildTask')}
+                              className="rounded px-1.5 py-0.5 text-xs font-medium text-ink-subtle hover:bg-column hover:text-ink"
+                            >
+                              {t('childTask')}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {!isCollapsed(lane) && (
+                      <div className="grid gap-2" style={grid}>
+                        {columns.map((c) => (
+                          <Column
+                            key={c.id}
+                            id={`${lane.key}::${c.id}`}
+                            label={c.label}
+                            tone={c.kind}
+                            items={lane.items.filter((it) => columnOf(it) === c.id)}
+                            renderCard={renderCard}
+                            minimized={mode === 'items' && c.category === 'Completed' && !showDone}
+                            onExpand={toggleShowDone}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {!visible.length && (
+                <div className="mt-4 max-w-xl">
+                  <EmptyState
+                    icon={modeItems.length ? 'filter-off' : 'inbox'}
+                    tone={modeItems.length ? 'filtered' : 'neutral'}
+                    title={t('noItemsFilters')}
+                    hint={filters.mine && modeItems.length ? t('onlyMineHint') : undefined}
+                    actionLabel={modeItems.length ? t('clearFilters') : undefined}
+                    onAction={modeItems.length ? () => setFilters(emptyFilters) : undefined}
+                  />
                 </div>
-              ))}
-              {!visible.length && <p className="py-8 text-center text-ink-muted">{t('noItemsFilters')}</p>}
+              )}
             </div>
           </div>
           <DragOverlay dropAnimation={null}>
             {dragging ? (
               <div className="w-[260px]">
-                <CardBody item={dragging} dragging />
+                <CardBody item={dragging} dragging planningOptions={planningOptions} />
               </div>
             ) : null}
           </DragOverlay>

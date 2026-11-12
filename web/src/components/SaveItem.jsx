@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api.js';
 import { useMeta, useUpdateItem } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
+import Dropdown from './Dropdown.jsx';
 import TypeIcon from './TypeIcon.jsx';
 
 const SaveContext = createContext(null);
@@ -157,14 +158,14 @@ function RequiredFieldsDialog({ dialog, meta, onCancel, onConfirm }) {
 
   const title = changes.state ? t('moveTo', { state: changes.state }) : t('requiredFields');
   return (
-    <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-[#091e427a] p-4 pt-20" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <form onSubmit={submit} className="w-full max-w-lg rounded-md bg-surface shadow-2xl" aria-label={title} data-required-dialog="true">
+    <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-backdrop p-4 pt-20" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+      <form onSubmit={submit} className="w-full max-w-lg rounded-md border border-line bg-surface-overlay shadow-2xl" aria-label={title} data-required-dialog="true">
         <div className="border-b border-line px-6 py-4">
           <h2 className="text-lg font-medium">{title}</h2>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-subtle">
             <TypeIcon type={item.type} size={14} /> {typeLabel(item.type)} {item.id} · <span className="truncate">{item.title}</span>
           </p>
-          {reason && <p className="mt-2 rounded-[3px] bg-[#fff7d6] px-2 py-1 text-xs text-[#7f5f01]">{reason}</p>}
+          {reason && <p className="mt-2 rounded-[3px] bg-warn-bg px-2 py-1 text-xs text-warn-ink">{reason}</p>}
         </div>
         <div className="space-y-4 px-6 py-4">
           {isLoading && <p className="text-sm text-ink-muted">{t('loadingItem')}</p>}
@@ -175,7 +176,7 @@ function RequiredFieldsDialog({ dialog, meta, onCancel, onConfirm }) {
                 <FieldInput key={f.key} f={f} def={defFor(f.key)} detail={detail} value={values[f.key]} onChange={(v) => set(f.key, v)} />
               ))}
           {unknown.map((f) => (
-            <p key={f.name} className="rounded-[3px] bg-[#ffebe6] px-3 py-2 text-sm text-[#ae2e24]">
+            <p key={f.name} className="rounded-[3px] bg-danger-bg px-3 py-2 text-sm text-danger-ink">
               {t('unknownField', { name: f.name })}{' '}
               <a href={detail?.webUrl} target="_blank" rel="noreferrer" className="underline">
                 {t('inAzure')}
@@ -183,7 +184,7 @@ function RequiredFieldsDialog({ dialog, meta, onCancel, onConfirm }) {
               .
             </p>
           ))}
-          {error && <div className="rounded-[3px] bg-[#ffebe6] px-3 py-2 text-sm text-[#ae2e24]">{error}</div>}
+          {error && <div className="rounded-[3px] bg-danger-bg px-3 py-2 text-sm text-danger-ink">{error}</div>}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-6 py-3">
           <button type="button" onClick={onCancel} className="rounded-[3px] px-3 py-1.5 text-sm font-medium text-ink-subtle hover:bg-hover">
@@ -202,7 +203,7 @@ function Label({ children, required, hint }) {
   return (
     <span className="mb-1 block text-xs font-semibold text-ink-subtle">
       {children}
-      {required && <span className="ml-0.5 text-[#de350b]">*</span>}
+      {required && <span className="ml-0.5 text-danger-ink">*</span>}
       {hint && <span className="ml-2 font-normal text-ink-muted">{hint}</span>}
     </span>
   );
@@ -246,19 +247,21 @@ function FieldInput({ f, def, detail, value, onChange }) {
   if (def?.options) {
     const opts = value && !def.options.includes(String(value)) ? [String(value), ...def.options] : def.options;
     return (
-      <label className="block">
+      <div>
         <Label required={f.required} hint={tl(f.hint)}>
           {label}
         </Label>
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-          <option value="">Selecione…</option>
-          {opts.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Dropdown
+          variant="input"
+          width="w-full"
+          searchable={opts.length > 8}
+          placeholder={t('select')}
+          value={value === '' || value === undefined ? null : String(value)}
+          options={opts.map((o) => ({ value: o, label: o }))}
+          onSelect={(v) => onChange(v)}
+          ariaLabel={label}
+        />
+      </div>
     );
   }
   return (

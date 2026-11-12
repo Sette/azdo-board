@@ -15,13 +15,13 @@ export function colorFor(key = '') {
 export function stateTone(category) {
   switch (category) {
     case 'InProgress':
-      return 'bg-[#deebff] text-[#0747a6]';
+      return 'bg-brand-subtle text-brand-ink';
     case 'Completed':
-      return 'bg-[#e3fcef] text-[#006644]';
+      return 'bg-success-bg text-success-ink';
     case 'Removed':
-      return 'bg-[#ffebe6] text-[#bf2600]';
+      return 'bg-danger-bg text-danger-ink';
     default:
-      return 'bg-[#dfe1e6] text-[#42526e]';
+      return 'bg-neutral-bg text-neutral-ink';
   }
 }
 
