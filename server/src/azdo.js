@@ -18,11 +18,19 @@ const STATE_TYPES = [...BOARD_TYPES, 'Feature', 'Epic'];
 const CREATE_TYPES = ['Product Backlog Item', 'Task', 'Bug', 'Feature'];
 const META_TTL_MS = 10 * 60 * 1000;
 
-export function createAzdo({ callTool = defaultCallTool, env = process.env, proc = getProcess(), taskboard = createTaskboard({ env }) } = {}) {
+export function createAzdo({
+  callTool = defaultCallTool,
+  env = process.env,
+  proc = getProcess(),
+  taskboard = createTaskboard({ env }),
+  userEmail = null,
+  sharedMetaCache = null,
+} = {}) {
   const org = env.AZDO_ORG;
   const project = env.AZDO_PROJECT;
   const team = env.AZDO_TEAM;
-  let metaCache = null;
+  const metaHolder = sharedMetaCache || { current: null };
+  const effectiveMe = userEmail || env.AZDO_ME || null;
 
   const wiql = (query, top = 200) => callTool('wit_query', { action: 'wiql', project, team, top, wiql: query });
   const esc = (s) => String(s).replace(/'/g, "''");
@@ -43,7 +51,9 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
   }
 
   async function getMeta({ refresh = false } = {}) {
-    if (!refresh && metaCache && Date.now() - metaCache.at < META_TTL_MS) return metaCache.data;
+    if (!refresh && metaHolder.current && Date.now() - metaHolder.current.at < META_TTL_MS) {
+      return { ...metaHolder.current.data, me: effectiveMe };
+    }
     const [iterations, settings, boardColumns, ...types] = await Promise.all([
       callTool('work', { action: 'list_team_iterations', project, team }),
       callTool('work', { action: 'get_team_settings', project, team }),
@@ -63,7 +73,7 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
       org,
       project,
       team,
-      me: env.AZDO_ME || null,
+      me: effectiveMe,
       lang: env.APP_LANG || null,
       areaPath: settings?.defaultAreaPath || project,
       sprints,
@@ -76,8 +86,8 @@ export function createAzdo({ callTool = defaultCallTool, env = process.env, proc
       webUrl: `https://dev.azure.com/${org}/${encodeURIComponent(project)}`,
       ...proc.publicMeta(),
     };
-    metaCache = { at: Date.now(), data };
-    return data;
+    metaHolder.current = { at: Date.now(), data };
+    return { ...data, me: effectiveMe };
   }
 
   async function getSprintItems(iterationId) {

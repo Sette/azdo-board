@@ -216,6 +216,38 @@ export default function Icon({ name, size = 16, className = '', title }) {
         </>
       );
       break;
+    case 'eye-off':
+      paths = (
+        <>
+          <path d="M2.2 2.2l11.6 11.6" />
+          <path d="M6.5 4.1A6.6 6.6 0 0 1 8 3.8c4.1 0 6.4 4.2 6.4 4.2a11 11 0 0 1-2.2 2.8M9.9 11.8A6.5 6.5 0 0 1 8 12.2C3.9 12.2 1.6 8 1.6 8a11.2 11.2 0 0 1 2.7-3.2" />
+        </>
+      );
+      break;
+    case 'lock':
+      paths = (
+        <>
+          <rect x="3.2" y="7.2" width="9.6" height="6.5" rx="1.3" />
+          <path d="M5.2 7.2V5.1a2.8 2.8 0 0 1 5.6 0v2.1" />
+        </>
+      );
+      break;
+    case 'key':
+      paths = (
+        <>
+          <circle cx="5.5" cy="9.5" r="3" />
+          <path d="M7.8 7.2L13.5 2.5M11.2 4.4l2 1.8M13.2 2.8l1.3 1.2" />
+        </>
+      );
+      break;
+    case 'logout':
+      paths = (
+        <>
+          <path d="M6.2 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h2.7" />
+          <path d="M10.5 5.2L13.5 8l-3 2.8M6.2 8h7.1" />
+        </>
+      );
+      break;
     case 'edit':
       paths = <path d="M10.8 2.6l2.6 2.6L5.6 13H3v-2.6l7.8-7.8Z" />;
       break;

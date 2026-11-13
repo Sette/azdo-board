@@ -1,0 +1,13 @@
+# Permite subir process.config.json (ignorado no git público) para a imagem privada do Cloud Run,
+# mantendo .env e node_modules fora do upload do Cloud Build.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules/
+web/dist/
+docs/
+server/test/
+*.log
+.scannerwork/

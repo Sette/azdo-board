@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from './components/AuthGate.jsx';
 import CommandPalette, { ShortcutsModal } from './components/CommandPalette.jsx';
 import { useOpenCreate } from './components/CreateModal.jsx';
 import Icon from './components/Icon.jsx';
@@ -57,7 +58,7 @@ const THEME_OPTIONS = [
   { value: 'system', icon: 'monitor', shortKey: 'themeShortSystem', titleKey: 'themeSystem' },
 ];
 
-function ThemeSwitch() {
+export function ThemeSwitch() {
   const { theme, setTheme, purple, togglePurple } = useTheme();
   const { t } = useI18n();
   return (
@@ -99,7 +100,7 @@ function ThemeSwitch() {
   );
 }
 
-function LangSwitch() {
+export function LangSwitch() {
   const { lang, setLang, t } = useI18n();
   return (
     <div className="flex rounded-[3px] bg-column p-0.5 text-xs" role="group" aria-label={t('language')}>
@@ -113,6 +114,86 @@ function LangSwitch() {
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function UserMenu() {
+  const { authRequired, user, openPatModal, logout } = useAuth();
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!authRequired || !user) return null;
+  const label = user.email || user.name || 'Azure DevOps';
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={t('accountMenu', { email: label })}
+        aria-label={t('accountMenu', { email: label })}
+        aria-expanded={open}
+        className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ring-2 ring-transparent transition-shadow hover:ring-brand/40 focus:ring-brand"
+      >
+        {user.picture ? (
+          <img src={user.picture} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+        ) : (
+          <span
+            className="flex h-full w-full items-center justify-center text-[11px] font-bold text-white"
+            style={{ background: colorFor(label) }}
+          >
+            {initials(user.name || label)}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-1.5 w-60 rounded-md border border-line bg-surface-overlay py-1.5 text-xs shadow-lg">
+          <div className="border-b border-line px-3 py-2">
+            <div className="truncate font-semibold text-ink">{user.name || label}</div>
+            {user.email && <div className="truncate text-ink-muted">{user.email}</div>}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              openPatModal();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-ink hover:bg-hover"
+          >
+            <Icon name="key" size={14} className="text-ink-subtle" />
+            <span>{t('changePat')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              logout();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium text-danger-ink hover:bg-hover"
+          >
+            <Icon name="logout" size={14} />
+            <span>{t('signOut')}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -214,6 +295,7 @@ function TopBar({ onOpenMobileNav, onOpenShortcuts }) {
       </button>
       <ThemeSwitch />
       <LangSwitch />
+      <UserMenu />
     </header>
   );
 }
