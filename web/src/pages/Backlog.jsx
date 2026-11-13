@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api.js';
 import Avatar from '../components/Avatar.jsx';
 import { BlockedBadge, PriorityBadge } from '../components/Card.jsx';
+import CopyIdButton from '../components/CopyIdButton.jsx';
 import { useOpenCreate } from '../components/CreateModal.jsx';
 import FilterBar, { applyFilters, defaultFilters } from '../components/FilterBar.jsx';
 import Icon from '../components/Icon.jsx';
@@ -31,7 +32,9 @@ function Row({ item, meta, onOpen, overlay }) {
     >
       <Icon name="grip" size={14} className="text-ink-muted/40 transition-colors group-hover:text-ink-muted" />
       <TypeIcon type={item.type} size={16} />
-      <span className="w-14 shrink-0 font-medium text-ink-muted">{item.id}</span>
+      <span className="w-16 shrink-0">
+        <CopyIdButton id={item.id} />
+      </span>
       {item.blocked && <BlockedBadge />}
       <span className="min-w-0 flex-1 truncate">{item.title}</span>
       <span className="hidden max-w-60 shrink-0 items-center gap-1 overflow-hidden md:flex">

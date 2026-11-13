@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import Avatar from '../components/Avatar.jsx';
 import Card, { CardBody } from '../components/Card.jsx';
+import CopyIdButton from '../components/CopyIdButton.jsx';
 import { useOpenCreate } from '../components/CreateModal.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -355,12 +356,18 @@ export default function Board() {
                         <button
                           type="button"
                           onClick={() => setCollapsedLanes((c) => ({ ...c, [lane.key]: !isCollapsed(lane) }))}
-                          className="flex min-w-0 items-center gap-2 text-left"
+                          className="flex items-center gap-1.5 text-left"
                         >
                           <Icon name={isCollapsed(lane) ? 'chevron-right' : 'chevron-down'} size={14} className="text-ink-muted" />
                           {lane.parent && <TypeIcon type={lane.parent.type} size={14} />}
                           {groupBy === 'assignee' && <Avatar person={lane.person} size={20} />}
-                          {lane.parent && <span className="text-ink-muted">{lane.parent.id}</span>}
+                        </button>
+                        {lane.parent && <CopyIdButton id={lane.parent.id} />}
+                        <button
+                          type="button"
+                          onClick={() => setCollapsedLanes((c) => ({ ...c, [lane.key]: !isCollapsed(lane) }))}
+                          className="flex min-w-0 items-center gap-2 text-left"
+                        >
                           <span className="truncate font-medium">{lane.title}</span>
                           <span className="text-xs text-ink-muted">
                             ({laneDoneTasks}/{lane.items.length})

@@ -157,6 +157,17 @@ export default function Icon({ name, size = 16, className = '', title }) {
         </>
       );
       break;
+    case 'palette':
+      paths = (
+        <>
+          <path d="M8 2.2a5.8 5.8 0 1 0 0 11.6c.8 0 1.4-.6 1.4-1.4 0-.37-.14-.7-.37-.96-.22-.25-.36-.58-.36-.95 0-.8.65-1.45 1.45-1.45h1.68A2.2 2.2 0 0 0 14 6.84C14 4.28 11.31 2.2 8 2.2Z" />
+          <circle cx="5.6" cy="6.6" r="0.75" fill="currentColor" stroke="none" />
+          <circle cx="8" cy="5.1" r="0.75" fill="currentColor" stroke="none" />
+          <circle cx="10.4" cy="6.6" r="0.75" fill="currentColor" stroke="none" />
+          <circle cx="5.5" cy="9.4" r="0.75" fill="currentColor" stroke="none" />
+        </>
+      );
+      break;
     case 'warning':
       paths = (
         <>

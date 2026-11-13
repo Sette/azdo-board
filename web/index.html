@@ -7,9 +7,13 @@
     <title>Board</title>
     <script>
       try {
-        const pref = JSON.parse(localStorage.getItem('azdo-board:theme') || '"system"');
-        const dark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        const rawTheme = JSON.parse(localStorage.getItem('azdo-board:theme') || '"system"');
+        const palette = JSON.parse(localStorage.getItem('azdo-board:palette') || '"default"');
+        const isPurple = palette === 'purple' || rawTheme === 'purple';
+        const pref = rawTheme === 'purple' ? 'system' : rawTheme;
+        const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const dark = pref === 'dark' || (pref !== 'light' && sysDark);
+        document.documentElement.dataset.theme = isPurple ? (dark ? 'purple-dark' : 'purple') : dark ? 'dark' : 'light';
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
       } catch {}
     </script>

@@ -7,6 +7,7 @@ import { useI18n } from '../lib/i18n.jsx';
 import { toEditableMarkdown, toggleTaskCheckbox, toSafeHtml } from '../lib/rich.js';
 import Avatar from './Avatar.jsx';
 import { BlockedBadge } from './Card.jsx';
+import CopyIdButton, { copyToClipboard } from './CopyIdButton.jsx';
 import { useOpenCreate } from './CreateModal.jsx';
 import Dropdown from './Dropdown.jsx';
 import Icon from './Icon.jsx';
@@ -21,6 +22,12 @@ import TypeIcon from './TypeIcon.jsx';
 const defsFor = (meta, type, pred = () => true) => (meta?.fieldDefs || []).filter((d) => d.types?.includes(type) && pred(d));
 const appliesTo = (rule, type) => rule === true || (Array.isArray(rule) && rule.includes(type));
 const isEmptyValue = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'object' && !Array.isArray(v) && 'value' in v && !v.value);
+
+function sumChildTasksHours(item) {
+  const tasks = (item.children || []).filter((c) => c.type === 'Task' && c.state !== 'Removed');
+  if (tasks.length) return Math.round(tasks.reduce((a, c) => a + (c.completedWork || 0), 0) * 100) / 100;
+  return item.childrenCompletedWork ?? null;
+}
 
 export default function ItemModal() {
   const { itemId, close } = useItemParam();
@@ -52,6 +59,26 @@ function ItemView({ id, onClose }) {
   const toast = useToast();
   const [copied, setCopied] = useState(null);
 
+  const copyText = (kind, text, msg) => {
+    copyToClipboard(text);
+    setCopied(kind);
+    toast.info(msg);
+    setTimeout(() => setCopied((cur) => (cur === kind ? null : cur)), 1500);
+  };
+
+  useEffect(() => {
+    if (!item?.id) return undefined;
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key !== 'i') return;
+      if (e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (document.querySelector('[data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal]')) return;
+      e.preventDefault();
+      copyText('key', String(item.id), t('copiedIdToast', { id: item.id }));
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
   if (isLoading) return <ItemModalSkeleton id={id} />;
   if (error)
     return (
@@ -68,13 +95,6 @@ function ItemView({ id, onClose }) {
   const richDefs = defsFor(meta, item.type, (d) => d.input === 'rich');
   const linkDefs = defsFor(meta, item.type, (d) => d.input === 'links');
 
-  const copyText = (kind, text, msg) => {
-    navigator.clipboard?.writeText(text);
-    setCopied(kind);
-    toast.info(msg);
-    setTimeout(() => setCopied((cur) => (cur === kind ? null : cur)), 1500);
-  };
-
   return (
     <>
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-6 py-3 text-sm text-ink-subtle">
@@ -87,6 +107,7 @@ function ItemView({ id, onClose }) {
                   {item.parent.id} {item.parent.title}
                 </span>
               </button>
+              <CopyIdButton id={item.parent.id} showId={false} />
               <span className="text-ink-muted">/</span>
             </>
           )}
@@ -96,12 +117,13 @@ function ItemView({ id, onClose }) {
           </a>
           <button
             type="button"
-            onClick={() => copyText('key', `#${item.id}`, t('copiedToast', { text: `#${item.id}` }))}
-            title={t('copyKey', { id: item.id })}
+            onClick={() => copyText('key', String(item.id), t('copiedIdToast', { id: item.id }))}
+            title={`${t('copyKey', { id: item.id })} (I)`}
             aria-label={t('copyKey', { id: item.id })}
-            className="rounded p-1 text-ink-muted hover:bg-hover hover:text-ink"
+            className="inline-flex shrink-0 items-center gap-1 rounded-[3px] bg-column px-2 py-0.5 text-xs font-medium text-ink-subtle hover:bg-hover hover:text-ink"
           >
-            <Icon name={copied === 'key' ? 'check' : 'copy'} size={13} className={copied === 'key' ? 'text-success-ink' : ''} />
+            <Icon name={copied === 'key' ? 'check' : 'copy'} size={12} className={copied === 'key' ? 'text-success-ink' : ''} />
+            <span>{t('copyIdLabel')}</span>
           </button>
           {item.blocked && <BlockedBadge />}
         </div>
@@ -140,7 +162,7 @@ function ItemView({ id, onClose }) {
             {linkDefs.map((d) => (
               <LinksField key={d.key} def={d} item={item} save={save} />
             ))}
-            {item.type !== 'Task' && <Children item={item} meta={meta} />}
+            {item.type !== 'Task' && <Children item={item} meta={meta} save={save} />}
             <Comments item={item} />
           </div>
           <Details item={item} meta={meta} save={save} />
@@ -245,13 +267,17 @@ function RichField({ label, field, onSave, hint }) {
   );
 }
 
-function Children({ item, meta }) {
+function Children({ item, meta, save }) {
   const { t } = useI18n();
   const openCreate = useOpenCreate();
   const { open } = useItemParam();
+  const toast = useToast();
   const [hideDone, setHideDone] = useState(false);
   const done = item.children.filter((c) => stateCategory(meta, c.type, c.state) === 'Completed').length;
-  const hours = item.children.reduce((a, c) => a + (c.completedWork || 0), 0);
+  const hours = item.children.filter((c) => c.state !== 'Removed').reduce((a, c) => a + (c.completedWork || 0), 0);
+  const tasksSum = sumChildTasksHours(item);
+  const hasCompletedWork = defsFor(meta, item.type, (d) => d.key === 'completedWork').length > 0;
+  const canSumToPbi = hasCompletedWork && tasksSum != null && (tasksSum > 0 || item.completedWork != null) && item.completedWork !== tasksSum;
   const visibleChildren = hideDone ? item.children.filter((c) => stateCategory(meta, c.type, c.state) !== 'Completed') : item.children;
   return (
     <section className="mb-6">
@@ -274,19 +300,38 @@ function Children({ item, meta }) {
       </div>
       {item.children.length > 0 ? (
         <>
-          <div className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
-            <div className="h-1.5 flex-1 overflow-hidden rounded bg-column">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <div className="h-1.5 min-w-24 flex-1 overflow-hidden rounded bg-column">
               <div className="h-full bg-success-solid" style={{ width: `${(done / item.children.length) * 100}%` }} />
             </div>
-            {t('percentDone', { n: Math.round((done / item.children.length) * 100) })}
-            <span className="ml-2">· {t('hoursLogged', { n: Math.round(hours * 100) / 100 })}</span>
+            <span>{t('percentDone', { n: Math.round((done / item.children.length) * 100) })}</span>
+            <span>· {t('hoursLogged', { n: Math.round(hours * 100) / 100 })}</span>
+            {canSumToPbi && (
+              <button
+                type="button"
+                onClick={() => {
+                  save({ completedWork: tasksSum }, { completedWork: tasksSum });
+                  toast.success(t('summedTasksToast', { n: tasksSum }));
+                }}
+                title={t('useChildrenSum', { n: tasksSum })}
+                className="rounded-[3px] bg-brand-subtle px-1.5 py-0.5 font-medium text-brand-ink hover:bg-brand hover:text-white"
+              >
+                {t('sumToCompletedWork')}
+              </button>
+            )}
           </div>
           <ul className="divide-y divide-line rounded border border-line">
             {visibleChildren.map((c) => (
               <li key={c.id}>
-                <button onClick={() => open(c.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-sunken">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => open(c.id)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open(c.id))}
+                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-sunken"
+                >
                   <TypeIcon type={c.type} size={14} />
-                  <span className="shrink-0 text-xs text-ink-muted">{c.id}</span>
+                  <CopyIdButton id={c.id} />
                   {c.blocked && <BlockedBadge />}
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
                   {c.type === 'Task' && (
@@ -302,7 +347,7 @@ function Children({ item, meta }) {
                   )}
                   <Avatar person={c.assignee} size={20} />
                   <StateLozenge state={c.state} category={stateCategory(meta, c.type, c.state)} />
-                </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -519,6 +564,7 @@ function processWarnings(item, meta, t, tl) {
 // Campo do processo no painel Detalhes, conforme o tipo de entrada.
 function ProcessField({ def, item, save }) {
   const { t } = useI18n();
+  const toast = useToast();
   const value = item[def.key];
   if (def.input === 'readonly') {
     const list = Array.isArray(value) ? value : value ? [value] : [];
@@ -533,6 +579,28 @@ function ProcessField({ def, item, save }) {
     );
   }
   if (def.key === 'completedWork' && item.type === 'Task') return <HoursField item={item} save={save} />;
+  if (def.key === 'completedWork') {
+    const tasksSum = sumChildTasksHours(item);
+    const canSync = tasksSum != null && (tasksSum > 0 || value != null) && value !== tasksSum;
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <NumberField value={value} suffix={def.suffix ? ` ${def.suffix}` : ''} onSave={(v) => save({ [def.key]: v }, { [def.key]: v })} />
+        {canSync && (
+          <button
+            type="button"
+            onClick={() => {
+              save({ completedWork: tasksSum }, { completedWork: tasksSum });
+              toast.success(t('summedTasksToast', { n: tasksSum }));
+            }}
+            title={t('useChildrenSum', { n: tasksSum })}
+            className="rounded-[3px] bg-brand-subtle px-1.5 py-0.5 text-xs font-medium text-brand-ink hover:bg-brand hover:text-white"
+          >
+            {t('sumTasksBtn', { n: tasksSum })}
+          </button>
+        )}
+      </div>
+    );
+  }
   if (def.options) {
     const options = value != null && !def.options.includes(String(value)) ? [String(value), ...def.options] : def.options;
     return (

@@ -82,6 +82,96 @@ html[data-theme='dark'] {
   --shadow-card-hover: 0 4px 10px -2px #030404b3, 0 0 1px #030404d9;
 }
 
+html[data-theme='purple'] {
+  --color-brand: #80297d;
+  --color-brand-hover: #6b2268;
+  --color-brand-subtle: #eedded;
+  --color-brand-ink: #561b54;
+
+  --color-ink: #181218;
+  --color-ink-subtle: #463e50;
+  --color-ink-muted: #63596e;
+
+  --color-surface: #ffffff;
+  --color-surface-overlay: #ffffff;
+  --color-sunken: #f8f7f9;
+  --color-column: #f1eff2;
+  --color-hover: #e5e2e8;
+  --color-line: #cec9d3;
+
+  --color-neutral-bg: #e5e2e8;
+  --color-neutral-ink: #463e50;
+
+  --color-danger-bg: #fbe4e7;
+  --color-danger-hover: #f5cbd1;
+  --color-danger-ink: #9f1c2e;
+  --color-danger-border: #c7243a;
+  --color-danger-solid: #c7243a;
+  --color-danger-column: #fdf0f2;
+
+  --color-warn-bg: #fff4dc;
+  --color-warn-ink: #8a5a00;
+  --color-warn-border: #e09400;
+
+  --color-success-bg: #e4f5ec;
+  --color-success-ink: #166f41;
+  --color-success-solid: #1f9d5c;
+
+  --color-backdrop: #1812187a;
+  --shadow-card: 0 1px 1px #2a0f3729, 0 0 1px #2a0f373d;
+  --shadow-card-hover: 0 4px 8px -2px #2a0f3733, 0 0 1px #2a0f3747;
+}
+
+html[data-theme='purple-dark'] {
+  --color-brand: #9a4997;
+  --color-brand-hover: #a85ea6;
+  --color-brand-subtle: #3d1a4f;
+  --color-brand-ink: #dabad9;
+
+  --color-ink: #f1eff2;
+  --color-ink-subtle: #cec9d3;
+  --color-ink-muted: #a9a2b1;
+
+  --color-surface: #1f1924;
+  --color-surface-overlay: #2b2531;
+  --color-sunken: #181218;
+  --color-column: #261f2c;
+  --color-hover: #352d3d;
+  --color-line: #463e50;
+
+  --color-neutral-bg: #352d3d;
+  --color-neutral-ink: #cec9d3;
+
+  --color-danger-bg: #431823;
+  --color-danger-hover: #591f2e;
+  --color-danger-ink: #f898a6;
+  --color-danger-border: #e35267;
+  --color-danger-solid: #c7243a;
+  --color-danger-column: #2e1620;
+
+  --color-warn-bg: #3b2a14;
+  --color-warn-ink: #f7c96e;
+  --color-warn-border: #e09400;
+
+  --color-success-bg: #173528;
+  --color-success-ink: #7ce0ae;
+  --color-success-solid: #1f9d5c;
+
+  --color-backdrop: #0e0a10b8;
+  --shadow-card: 0 1px 1px #0d081080, 0 0 1px #0d0810a6;
+  --shadow-card-hover: 0 4px 10px -2px #0d0810b8, 0 0 1px #0d0810de;
+}
+
+html[data-theme='purple'] ::selection {
+  background: #eedded;
+  color: #2a0f37;
+}
+
+html[data-theme='purple-dark'] ::selection {
+  background: #561b54;
+  color: #f7eef6;
+}
+
 html,
 body,
 #root {

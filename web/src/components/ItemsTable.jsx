@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import Avatar from './Avatar.jsx';
 import { BlockedBadge, PriorityBadge } from './Card.jsx';
+import CopyIdButton from './CopyIdButton.jsx';
 import Icon from './Icon.jsx';
 import StateLozenge from './StateLozenge.jsx';
 import TypeIcon from './TypeIcon.jsx';
@@ -85,7 +86,9 @@ export default function ItemsTable({ rows, meta, onOpen, showSprint = false }) {
             <td className="py-2 pl-1">
               <TypeIcon type={r.type} />
             </td>
-            <td className="py-2 font-medium text-ink-muted">{r.id}</td>
+            <td className="py-2">
+              <CopyIdButton id={r.id} />
+            </td>
             <td className="max-w-0 py-2 pr-4">
               <span className="flex items-center gap-2">
                 {r.priority != null && <PriorityBadge priority={r.priority} />}

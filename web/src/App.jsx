@@ -58,10 +58,10 @@ const THEME_OPTIONS = [
 ];
 
 function ThemeSwitch() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, purple, togglePurple } = useTheme();
   const { t } = useI18n();
   return (
-    <div className="flex rounded-[3px] bg-column p-0.5 text-xs" role="group" aria-label={t('themeLabel')}>
+    <div className="flex items-center rounded-[3px] bg-column p-0.5 text-xs" role="group" aria-label={t('themeLabel')}>
       {THEME_OPTIONS.map((o) => {
         const active = theme === o.value;
         return (
@@ -81,6 +81,20 @@ function ThemeSwitch() {
           </button>
         );
       })}
+      <span className="mx-0.5 h-3.5 w-px bg-line" aria-hidden="true" />
+      <button
+        type="button"
+        onClick={togglePurple}
+        aria-pressed={purple}
+        title={t('themePurple')}
+        aria-label={t('themePurple')}
+        className={`inline-flex items-center gap-1 rounded-[3px] px-2 py-1 font-semibold transition-colors ${
+          purple ? 'bg-brand text-white shadow-sm hover:bg-brand-hover' : 'text-ink-muted hover:text-ink'
+        }`}
+      >
+        <Icon name="palette" size={13} />
+        <span className="hidden xl:inline">{t('themeShortPurple')}</span>
+      </button>
     </div>
   );
 }

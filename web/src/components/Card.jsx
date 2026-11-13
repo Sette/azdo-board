@@ -1,7 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import Avatar from './Avatar.jsx';
+import CopyIdButton from './CopyIdButton.jsx';
 import Icon from './Icon.jsx';
-import { useToast } from './Toast.jsx';
 import TypeIcon from './TypeIcon.jsx';
 import { useI18n } from '../lib/i18n.jsx';
 
@@ -36,16 +36,8 @@ export function PriorityBadge({ priority }) {
 
 export function CardBody({ item, parent, dragging, showValidationBadge = false, planningOptions = [] }) {
   const { t } = useI18n();
-  const toast = useToast();
   const visibleTags = item.tags.slice(0, 3);
   const extraTags = item.tags.slice(3);
-
-  const copyId = (e) => {
-    e.stopPropagation();
-    const ref = `#${item.id}`;
-    navigator.clipboard?.writeText(ref);
-    toast?.info(t('copiedToast', { text: ref }));
-  };
 
   return (
     <div
@@ -53,20 +45,8 @@ export function CardBody({ item, parent, dragging, showValidationBadge = false, 
         item.blocked ? 'border-l-4 border-danger-border' : ''
       } ${dragging ? 'rotate-2 shadow-2xl ring-2 ring-brand/40' : 'hover:bg-hover/60 hover:shadow-card-hover'}`}
     >
-      {!dragging && (
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={copyId}
-          title={t('copyKey', { id: item.id })}
-          aria-label={t('copyKey', { id: item.id })}
-          className="absolute top-2 right-2 rounded bg-surface/90 p-1 text-ink-muted opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:bg-hover hover:text-ink focus:opacity-100"
-        >
-          <Icon name="copy" size={12} />
-        </button>
-      )}
       {(item.blocked || (showValidationBadge && item.inValidation)) && (
-        <div className="mb-1.5 flex flex-wrap items-center gap-1 pr-5">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1">
           {item.blocked && <BlockedBadge />}
           {showValidationBadge && item.inValidation && (
             <span className="inline-flex items-center gap-1 rounded-[3px] bg-brand-subtle px-1.5 py-px text-[11px] font-bold text-brand-ink uppercase">
@@ -75,7 +55,7 @@ export function CardBody({ item, parent, dragging, showValidationBadge = false, 
           )}
         </div>
       )}
-      <p className="mb-2 line-clamp-3 pr-4 text-sm leading-snug">{item.title}</p>
+      <p className="mb-2 line-clamp-3 text-sm leading-snug">{item.title}</p>
       {parent && <p className="mb-2 truncate text-[11px] text-ink-muted">↳ {parent.title}</p>}
       {visibleTags.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-1">
@@ -102,9 +82,9 @@ export function CardBody({ item, parent, dragging, showValidationBadge = false, 
           )}
         </div>
       )}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <TypeIcon type={item.type} size={14} />
-        <span className="text-xs font-medium text-ink-muted">{item.id}</span>
+        <CopyIdButton id={item.id} />
         <span className="flex-1" />
         <PriorityBadge priority={item.priority} />
         {item.type === 'Task'

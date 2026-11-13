@@ -3,9 +3,12 @@ import { prefs } from './format.js';
 
 const ThemeContext = createContext({
   theme: 'system',
+  purple: false,
   resolvedTheme: 'light',
   setTheme: () => {},
   cycleTheme: () => {},
+  setPurple: () => {},
+  togglePurple: () => {},
 });
 
 const ORDER = ['light', 'dark', 'system'];
@@ -17,7 +20,17 @@ function systemPrefersDark() {
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => {
     const saved = prefs.get('theme', 'system');
+    if (saved === 'purple') {
+      prefs.set('theme', 'system');
+      prefs.set('palette', 'purple');
+      return 'system';
+    }
     return ORDER.includes(saved) ? saved : 'system';
+  });
+  const [purple, setPurpleState] = useState(() => {
+    const savedPalette = prefs.get('palette', 'default');
+    const savedTheme = prefs.get('theme', 'system');
+    return savedPalette === 'purple' || savedTheme === 'purple';
   });
   const [sysDark, setSysDark] = useState(systemPrefersDark);
 
@@ -29,12 +42,13 @@ export function ThemeProvider({ children }) {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  const resolvedTheme = theme === 'system' ? (sysDark ? 'dark' : 'light') : theme;
+  const isDark = theme === 'dark' || (theme === 'system' && sysDark);
+  const resolvedTheme = purple ? (isDark ? 'purple-dark' : 'purple') : isDark ? 'dark' : 'light';
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+  }, [resolvedTheme, isDark]);
 
   const setTheme = useCallback((next) => {
     const val = ORDER.includes(next) ? next : 'system';
@@ -50,7 +64,24 @@ export function ThemeProvider({ children }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ theme, resolvedTheme, setTheme, cycleTheme }), [theme, resolvedTheme, setTheme, cycleTheme]);
+  const setPurple = useCallback((enabled) => {
+    const val = Boolean(enabled);
+    setPurpleState(val);
+    prefs.set('palette', val ? 'purple' : 'default');
+  }, []);
+
+  const togglePurple = useCallback(() => {
+    setPurpleState((cur) => {
+      const next = !cur;
+      prefs.set('palette', next ? 'purple' : 'default');
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(
+    () => ({ theme, purple, resolvedTheme, setTheme, cycleTheme, setPurple, togglePurple }),
+    [theme, purple, resolvedTheme, setTheme, cycleTheme, setPurple, togglePurple],
+  );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

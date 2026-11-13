@@ -23,6 +23,7 @@ export function ShortcutsModal({ onClose }) {
     ['C', t('shortcutCreate')],
     ['M', t('shortcutMine')],
     ['[', t('shortcutSidebar')],
+    ['I', t('shortcutCopyId')],
     ['?', t('shortcutHelp')],
     ['Esc', t('close')],
   ];
@@ -54,7 +55,7 @@ export function ShortcutsModal({ onClose }) {
 
 export default function CommandPalette({ onClose, onCreate, onNavigate }) {
   const { t, lang, setLang } = useI18n();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, purple, togglePurple } = useTheme();
   const { data: meta } = useMeta();
   const qc = useQueryClient();
   const navigate = onNavigate;
@@ -130,6 +131,14 @@ export default function CommandPalette({ onClose, onCreate, onNavigate }) {
         run: () => setTheme('system'),
       },
       {
+        id: 'act-theme-purple',
+        group: t('paletteActions'),
+        label: t('themePurple'),
+        icon: <Icon name="palette" size={14} />,
+        badge: purple ? <Icon name="check" size={13} className="text-brand-ink" /> : null,
+        run: () => togglePurple(),
+      },
+      {
         id: 'act-lang',
         group: t('paletteActions'),
         label: `${t('language')}: ${lang === 'en' ? 'Português (PT)' : 'English (EN)'}`,
@@ -185,7 +194,7 @@ export default function CommandPalette({ onClose, onCreate, onNavigate }) {
       if (!list.some((x) => x.id === item.id)) list.push(item);
     }
     return list.slice(0, 25);
-  }, [q, cachedItems, meta, t, lang, setLang, theme, setTheme, onCreate, navigate, location.pathname, location.search, params]);
+  }, [q, cachedItems, meta, t, lang, setLang, theme, setTheme, purple, togglePurple, onCreate, navigate, location.pathname, location.search, params]);
 
   useEffect(() => setActiveIdx(0), [q]);
 
