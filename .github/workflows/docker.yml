@@ -87,7 +87,7 @@ jobs:
 
       - name: Smoke test container in demo mode
         run: |
-          docker run -d --rm --name azdo-board-smoke -e AZDO_DEMO=1 -p 127.0.0.1:3001:3001 azdo-board:smoke-test
+          docker run -d --rm --name azdo-board-smoke -e AZDO_DEMO=1 -p 127.0.0.1:3001:8080 azdo-board:smoke-test
           for i in $(seq 1 15); do
             if curl -fsS http://127.0.0.1:3001/api/meta > /dev/null; then
               echo "Container is up and responding on /api/meta"
