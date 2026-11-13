@@ -2,15 +2,22 @@
 // calls the Azure DevOps REST API directly with the same PAT.
 // A task's column is not a work item field: it lives on the taskboard, and a column can
 // only be set when the item's state is mapped to it (change the state first).
+import { normalizeBasicPat } from './auth.js';
 import { McpError } from './mcp.js';
 
 const API = 'api-version=7.1-preview.1';
 
 export function createTaskboard({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
-  const { AZDO_ORG: org, AZDO_PROJECT: project, AZDO_TEAM: team, PERSONAL_ACCESS_TOKEN: pat } = env;
-  if (!org || !project || !team || !pat) return null;
+  const { AZDO_ORG: org, AZDO_PROJECT: project, AZDO_TEAM: team, PERSONAL_ACCESS_TOKEN: rawPat, AZDO_ME: me } = env;
+  if (!org || !project || !team || !rawPat) return null;
+  let pat = rawPat;
+  try {
+    pat = normalizeBasicPat(rawPat, me || '');
+  } catch {
+    pat = rawPat;
+  }
   const base = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/${encodeURIComponent(team)}/_apis/work`;
-  // Same token the MCP server receives (already base64 "user:pat").
+  // Normalized base64 "user:pat" Basic credential.
   const headers = { Authorization: `Basic ${pat}`, 'Content-Type': 'application/json' };
 
   async function req(path, init = {}) {

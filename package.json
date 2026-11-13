@@ -12,7 +12,8 @@
     "build": "npm -w web run build",
     "start": "npm -w server start",
     "test": "npm -w server test",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "deploy:cloudrun": "bash scripts/deploy-cloudrun.sh"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

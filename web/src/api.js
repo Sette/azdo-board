@@ -1,8 +1,9 @@
 // Cliente da API local (Express → MCP → Azure DevOps).
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -13,14 +14,26 @@ export const setApiLang = (lang) => {
 };
 
 async function request(method, path, body) {
+  const headers = { 'x-lang': apiLang };
+  if (method !== 'GET' && method !== 'HEAD') headers['x-requested-with'] = 'azdo-board';
+  if (body) headers['content-type'] = 'application/json';
+
   const res = await fetch(`/api${path}`, {
     method,
-    headers: { 'x-lang': apiLang, ...(body ? { 'content-type': 'application/json' } : {}) },
+    credentials: 'same-origin',
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new ApiError(cleanError(data.error) || `Error ${res.status}`, res.status);
+    if (
+      !path.startsWith('/auth') &&
+      ((res.status === 401 && (data.code === 'unauthenticated' || data.code === 'invalidPat')) ||
+        (res.status === 403 && data.code === 'patRequired'))
+    ) {
+      window.dispatchEvent(new CustomEvent('azdo:auth-invalid', { detail: { code: data.code } }));
+    }
+    const err = new ApiError(cleanError(data.error) || `Error ${res.status}`, res.status, data.code);
     err.missingFields = data.missingFields;
     err.additional = data.additional;
     throw err;
@@ -42,6 +55,11 @@ const qs = (params) => {
 };
 
 export const api = {
+  authStatus: () => request('GET', '/auth/status'),
+  loginGoogle: (credential) => request('POST', '/auth/google', { credential }),
+  savePat: (pat) => request('POST', '/auth/pat', { pat }),
+  clearPat: () => request('DELETE', '/auth/pat'),
+  logout: () => request('POST', '/auth/logout'),
   meta: () => request('GET', '/meta'),
   people: () => request('GET', '/people'),
   sprintItems: (iterationId) => request('GET', `/sprints/${iterationId}/items`),
