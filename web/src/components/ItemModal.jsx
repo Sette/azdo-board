@@ -6,6 +6,7 @@ import { useItemParam, useMeta, usePeople } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
 import { toEditableMarkdown, toggleTaskCheckbox, toSafeHtml } from '../lib/rich.js';
 import Avatar from './Avatar.jsx';
+import { AttachmentsSection, ImageLightbox } from './Attachments.jsx';
 import { BlockedBadge } from './Card.jsx';
 import CopyIdButton, { copyToClipboard } from './CopyIdButton.jsx';
 import { useOpenCreate } from './CreateModal.jsx';
@@ -35,7 +36,7 @@ export default function ItemModal() {
     if (!itemId) return undefined;
     const onKey = (e) =>
       e.key === 'Escape' &&
-      !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal]') &&
+      !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal], [data-lightbox]') &&
       close();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -58,6 +59,7 @@ function ItemView({ id, onClose }) {
   const { open } = useItemParam();
   const toast = useToast();
   const [copied, setCopied] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
 
   const copyText = (kind, text, msg) => {
     copyToClipboard(text);
@@ -148,8 +150,10 @@ function ItemView({ id, onClose }) {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
           <div className="min-w-0">
             <InlineTitle value={item.title} onSave={(title) => save({ title }, { title })} />
-            <RichField label={t('description')} field={item.description} onSave={saveRich('description')} />
-            {item.type !== 'Task' && <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={saveRich('acceptanceCriteria')} />}
+            <RichField label={t('description')} field={item.description} onSave={saveRich('description')} onPreviewImage={setLightbox} />
+            {item.type !== 'Task' && (
+              <RichField label={t('acceptanceCriteria')} field={item.acceptanceCriteria} onSave={saveRich('acceptanceCriteria')} onPreviewImage={setLightbox} />
+            )}
             {richDefs.map((d) => (
               <RichField
                 key={d.key}
@@ -157,17 +161,20 @@ function ItemView({ id, onClose }) {
                 hint={tl(d.hint && typeof d.hint === 'object' && !('en' in d.hint) && !('pt' in d.hint) ? d.hint[item.type] : d.hint)}
                 field={item[d.key]}
                 onSave={saveRich(d.key)}
+                onPreviewImage={setLightbox}
               />
             ))}
             {linkDefs.map((d) => (
               <LinksField key={d.key} def={d} item={item} save={save} />
             ))}
+            <AttachmentsSection item={item} onPreviewImage={setLightbox} />
             {item.type !== 'Task' && <Children item={item} meta={meta} save={save} />}
-            <Comments item={item} />
+            <Comments item={item} onPreviewImage={setLightbox} />
           </div>
           <Details item={item} meta={meta} save={save} />
         </div>
       </div>
+      <ImageLightbox src={lightbox?.src} alt={lightbox?.alt} downloadUrl={lightbox?.downloadUrl} onClose={() => setLightbox(null)} />
     </>
   );
 }
@@ -206,7 +213,19 @@ function InlineTitle({ value, onSave }) {
   );
 }
 
-function RichField({ label, field, onSave, hint }) {
+function openClickedImage(e, onPreviewImage) {
+  const img = e.target.closest('img');
+  if (!img || !onPreviewImage) return false;
+  e.stopPropagation();
+  const src = img.getAttribute('src');
+  if (!src) return false;
+  const alt = img.getAttribute('alt') || '';
+  const downloadUrl = src.startsWith('/api/attachments/') ? `${src}${src.includes('?') ? '&' : '?'}download=1` : src;
+  onPreviewImage({ src, alt, downloadUrl });
+  return true;
+}
+
+function RichField({ label, field, onSave, hint, onPreviewImage }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -223,6 +242,7 @@ function RichField({ label, field, onSave, hint }) {
       if (idx >= 0) onSave(toggleTaskCheckbox(field?.value, field?.format, idx, box.checked));
       return;
     }
+    if (openClickedImage(e, onPreviewImage)) return;
     if (e.target.closest('a')) return;
     start();
   };
@@ -232,10 +252,23 @@ function RichField({ label, field, onSave, hint }) {
   };
   return (
     <section className="mb-6">
-      <h3 className="mb-2 text-sm font-semibold text-ink-subtle">
-        {label}
-        {hint && <span className="ml-2 font-normal text-ink-muted">{hint}</span>}
-      </h3>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink-subtle">
+          {label}
+          {hint && <span className="ml-2 font-normal text-ink-muted">{hint}</span>}
+        </h3>
+        {!editing && html && (
+          <button
+            type="button"
+            onClick={start}
+            className="rounded p-1 text-ink-muted hover:bg-hover hover:text-ink"
+            title={t('editField', { label })}
+            aria-label={t('editField', { label })}
+          >
+            <Icon name="edit" size={12} />
+          </button>
+        )}
+      </div>
       {editing ? (
         <div data-editing="true">
           <MarkdownEditor
@@ -359,7 +392,7 @@ function Children({ item, meta, save }) {
   );
 }
 
-function Comments({ item }) {
+function Comments({ item, onPreviewImage }) {
   const { t, locale } = useI18n();
   const { data: meta } = useMeta();
   const { data: people = [] } = usePeople();
@@ -440,7 +473,11 @@ function Comments({ item }) {
               <div className="mb-1 text-sm">
                 <span className="font-semibold">{c.author?.name}</span> <span className="text-xs text-ink-muted">{fmtDateTime(c.createdDate, locale)}</span>
               </div>
-              <div className="prose-azdo text-sm" dangerouslySetInnerHTML={{ __html: toSafeHtml(c.text, c.format) }} />
+              <div
+                onClick={(e) => openClickedImage(e, onPreviewImage)}
+                className="prose-azdo text-sm"
+                dangerouslySetInnerHTML={{ __html: toSafeHtml(c.text, c.format) }}
+              />
             </div>
           </li>
         ))}

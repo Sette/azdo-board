@@ -11,11 +11,36 @@ turndown.addRule('taskListItem', {
 });
 
 let allowInteractiveTasks = false;
+let rewriteAttachments = false;
+
+const AZDO_ATT_RE = /^https?:\/\/(?:dev\.azure\.com\/[^/]+|[^/.]+\.visualstudio\.com)(?:\/[^/?#]+)?\/_apis\/wit\/attachments\/([0-9a-fA-F-]{8,64})(?:\?([^#]*))?/i;
+
+export function rewriteAzdoAttachmentUrl(rawUrl, { download = false } = {}) {
+  const m = String(rawUrl || '').match(AZDO_ATT_RE);
+  if (!m) return null;
+  const id = m[1];
+  const params = new URLSearchParams(m[2] || '');
+  const out = new URLSearchParams();
+  const fileName = params.get('fileName');
+  if (fileName) out.set('fileName', fileName);
+  if (download) out.set('download', '1');
+  const q = out.toString();
+  return `/api/attachments/${encodeURIComponent(id)}${q ? `?${q}` : ''}`;
+}
 
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName === 'A') {
+    if (rewriteAttachments) {
+      const proxied = rewriteAzdoAttachmentUrl(node.getAttribute('href'), { download: true });
+      if (proxied) node.setAttribute('href', proxied);
+    }
     node.setAttribute('target', '_blank');
     node.setAttribute('rel', 'noopener noreferrer');
+  }
+  if (node.tagName === 'IMG' && rewriteAttachments) {
+    const proxied = rewriteAzdoAttachmentUrl(node.getAttribute('src'));
+    if (proxied) node.setAttribute('src', proxied);
+    node.setAttribute('loading', 'lazy');
   }
   if (node.tagName === 'INPUT') {
     if (node.getAttribute('type') !== 'checkbox') {
@@ -32,10 +57,12 @@ export function toSafeHtml(value, format, { interactiveTasks = false } = {}) {
   if (!value) return '';
   const html = format === 'markdown' ? marked.parse(value) : value;
   allowInteractiveTasks = interactiveTasks;
+  rewriteAttachments = true;
   try {
     return DOMPurify.sanitize(html);
   } finally {
     allowInteractiveTasks = false;
+    rewriteAttachments = false;
   }
 }
 

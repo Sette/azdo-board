@@ -49,10 +49,41 @@ function cleanError(msg) {
     .slice(0, 500);
 }
 
+export const MAX_ATTACHMENT_MB = 20;
+export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024;
+
 const qs = (params) => {
   const s = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && !v.length)));
   return s.toString() ? `?${s}` : '';
 };
+
+export function attachmentUrl(attachmentId, fileName, { download = false } = {}) {
+  return `/api/attachments/${encodeURIComponent(attachmentId)}${qs({ fileName, download: download ? 1 : undefined })}`;
+}
+
+async function uploadBinary(path, file, params = {}) {
+  const res = await fetch(`/api${path}${qs(params)}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'x-lang': apiLang,
+      'x-requested-with': 'azdo-board',
+      'content-type': 'application/octet-stream',
+    },
+    body: file,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (
+      (res.status === 401 && (data.code === 'unauthenticated' || data.code === 'invalidPat')) ||
+      (res.status === 403 && data.code === 'patRequired')
+    ) {
+      window.dispatchEvent(new CustomEvent('azdo:auth-invalid', { detail: { code: data.code } }));
+    }
+    throw new ApiError(cleanError(data.error) || `Error ${res.status}`, res.status, data.code);
+  }
+  return data;
+}
 
 export const api = {
   authStatus: () => request('GET', '/auth/status'),
@@ -74,4 +105,7 @@ export const api = {
   update: (id, changes) => request('PATCH', `/items/${id}`, changes),
   create: (body) => request('POST', '/items', body),
   comment: (id, text) => request('POST', `/items/${id}/comments`, { text }),
+  uploadAttachment: (file) => uploadBinary('/attachments', file, { fileName: file.name }),
+  addAttachment: (id, file, comment) => uploadBinary(`/items/${id}/attachments`, file, { fileName: file.name, comment }),
+  removeAttachment: (id, attachmentId) => request('DELETE', `/items/${id}/attachments/${encodeURIComponent(attachmentId)}`),
 };

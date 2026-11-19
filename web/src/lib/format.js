@@ -52,6 +52,18 @@ export function personValue(p) {
 
 export const sumEffort = (items) => items.reduce((acc, it) => acc + (it.effort || 0), 0);
 
+export function fmtBytes(bytes) {
+  if (bytes === undefined || bytes === null || Number.isNaN(Number(bytes))) return '';
+  const n = Number(bytes);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function isImageFileName(name = '') {
+  return /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(name));
+}
+
 // Preferências do formulário "Criar" lembradas no navegador.
 export const prefs = {
   get(key, fallback) {
