@@ -46,4 +46,21 @@ test('demo mode: real azdo.js on in-memory data (board, columns, conflicts, crea
   const created = await azdo.createItem({ type: 'Task', title: 'New task', parentId: 201, planning: 'planned', activity: 'Testing' });
   assert.equal(created.parentId, 201);
   assert.ok(created.tags.includes('planned'));
+
+  // Attachments in demo mode: seeded on #201, plus upload + link + download + remove.
+  const pbi201 = await azdo.getItem(201);
+  assert.equal(pbi201.attachments.length, 1);
+  assert.equal(pbi201.attachments[0].name, 'saved-cards-mockup.png');
+
+  const payload = Buffer.from('demo-attachment-content');
+  const updated = await azdo.addAttachment(created.id, { fileName: 'notes.txt', buffer: payload });
+  assert.equal(updated.attachments.length, 1);
+  assert.equal(updated.attachments[0].name, 'notes.txt');
+
+  const fetched = await azdo.getAttachment(updated.attachments[0].id, { fileName: 'notes.txt' });
+  assert.deepEqual(fetched.buffer, payload);
+  assert.equal(fetched.inlineAllowed, false);
+
+  const afterRemove = await azdo.removeAttachment(created.id, updated.attachments[0].id);
+  assert.equal(afterRemove.attachments.length, 0);
 });

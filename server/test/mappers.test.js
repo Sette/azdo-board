@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { test } from 'node:test';
 import { describeMissing, localize, msg, pickLang } from '../src/i18n.js';
-import { pickPayload, unwrap } from '../src/mcp.js';
-import { toComment, toItem, toItemDetail, toPatchOps, toPerson } from '../src/mappers.js';
+import { invokeClientTool, pickPayload, unwrap } from '../src/mcp.js';
+import { attachmentIdFromUrl, sanitizeFileName, toComment, toItem, toItemDetail, toPatchOps, toPerson } from '../src/mappers.js';
 import { loadProcess } from '../src/process.js';
 
 const config = JSON.parse(fs.readFileSync(new URL('./fixtures/process.json', import.meta.url)));
@@ -143,4 +143,49 @@ test('i18n: idioma, rótulos e mensagens', () => {
   assert.equal(localize('Effort', 'pt'), 'Effort');
   assert.equal(msg('pt', 'notFound', { id: 3 }), 'Item 3 não encontrado');
   assert.equal(describeMissing([{ code: 'description' }, { label: { en: 'Team', pt: 'Time' } }], 'pt'), 'Descrição, Time');
+  assert.equal(msg('pt', 'attachmentTooLarge', { maxMb: 20 }), 'O arquivo excede o limite de 20 MB');
+});
+
+test('anexos: mapeamento de AttachedFile, sanitização de nomes e resource binário no MCP', async () => {
+  assert.equal(
+    attachmentIdFromUrl('https://dev.azure.com/org/Proj/_apis/wit/attachments/11111111-2222-3333-4444-555555555555?fileName=a.png'),
+    '11111111-2222-3333-4444-555555555555',
+  );
+  assert.equal(sanitizeFileName('../../evil/print.png'), 'print.png');
+  assert.equal(sanitizeFileName('..', 'fallback.bin'), 'fallback.bin');
+
+  const detail = toItemDetail(
+    {
+      id: 9,
+      rev: 2,
+      fields: { 'System.WorkItemType': 'Bug', 'System.Title': 'Bug', 'System.State': 'New' },
+      relations: [
+        {
+          rel: 'AttachedFile',
+          url: 'https://dev.azure.com/org/Proj/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?fileName=from-url.png',
+          attributes: { id: 42, resourceSize: 1024, resourceCreatedDate: '2026-03-04T12:00:00Z', comment: 'evidência' },
+        },
+      ],
+    },
+    'org',
+    proc.fields,
+  );
+  assert.equal(detail.attachments.length, 1);
+  assert.deepEqual(detail.attachments[0], {
+    id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    relationId: 42,
+    url: 'https://dev.azure.com/org/Proj/_apis/wit/attachments/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee?fileName=from-url.png',
+    name: 'from-url.png',
+    size: 1024,
+    createdDate: '2026-03-04T12:00:00Z',
+    comment: 'evidência',
+  });
+
+  const fakeClient = {
+    callTool: async () => ({
+      content: [{ type: 'resource', resource: { uri: 'data:image/png;base64,QUJD', mimeType: 'image/png', blob: 'QUJD' } }],
+    }),
+  };
+  const res = await invokeClientTool(fakeClient, 'wit_work_item_attachment', { attachmentId: '12345678' });
+  assert.equal(res.blob, 'QUJD');
 });
