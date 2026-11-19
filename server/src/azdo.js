@@ -2,7 +2,9 @@
 import { callTool as defaultCallTool, McpError } from './mcp.js';
 import {
   LIST_FIELDS,
+  attachmentIdFromUrl,
   chunk,
+  sanitizeFileName,
   toComment,
   toItem,
   toItemDetail,
@@ -17,6 +19,45 @@ const BOARD_TYPES = ['Product Backlog Item', 'Bug', 'Task'];
 const STATE_TYPES = [...BOARD_TYPES, 'Feature', 'Epic'];
 const CREATE_TYPES = ['Product Backlog Item', 'Task', 'Bug', 'Feature'];
 const META_TTL_MS = 10 * 60 * 1000;
+const MAX_ATTACHMENT_MB = 20;
+const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024;
+const SAFE_INLINE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'application/pdf']);
+const MIME_BY_EXT = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  csv: 'text/csv; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  zip: 'application/zip',
+};
+
+function toBuffer(input) {
+  if (Buffer.isBuffer(input)) return input;
+  if (input instanceof Uint8Array) return Buffer.from(input);
+  if (typeof input === 'string' && input.length) return Buffer.from(input, 'base64');
+  return Buffer.alloc(0);
+}
+
+function withFileNameParam(rawUrl, safeName) {
+  try {
+    const u = new URL(String(rawUrl));
+    if (!u.searchParams.has('fileName')) u.searchParams.set('fileName', safeName);
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+function isAzdoAttachmentUrl(url) {
+  return Boolean(attachmentIdFromUrl(url)) && /^https:\/\/(?:dev\.azure\.com\/|[^/.]+\.visualstudio\.com\/)/i.test(String(url || ''));
+}
 
 export function createAzdo({
   callTool = defaultCallTool,
@@ -255,11 +296,15 @@ export function createAzdo({
     return syncColumn(await getItem(id), column, changes.state !== undefined);
   }
 
-  async function createItem({ type, title, parentId, iterationPath, assignee, description, tags = [], ...extra }) {
+  async function createItem({ type, title, parentId, iterationPath, assignee, description, tags = [], attachments = [], ...extra }) {
     if (!type || !String(title || '').trim()) throw new McpError('type and title required', { status: 400, code: 'typeTitleRequired' });
     const built = proc.buildExtraFields(type, { ...extra, description, parentId });
     if (built.missing.length) {
       throw new McpError('required fields', { status: 400, code: 'requiredFields', params: { missing: built.missing } });
+    }
+    const listAttachments = Array.isArray(attachments) ? attachments : [];
+    for (const att of listAttachments) {
+      if (!isAzdoAttachmentUrl(att?.url)) throw new McpError('invalid attachment url', { status: 400, code: 'invalidAttachment' });
     }
     const meta = await getMeta();
     const allTags = [...new Set([...(tags || []), ...built.tags].map((t) => String(t).trim()).filter(Boolean))];
@@ -276,21 +321,34 @@ export function createAzdo({
     const created = await withRuleErrors(() => callTool('wit_work_item_write', { action: 'create', project, workItemType: type, fields }));
     const id = created?.id;
     if (!id) throw new McpError('no created id', { code: 'noCreatedId' });
+    const relationUpdates = [];
     if (parentId) {
+      relationUpdates.push({
+        op: 'add',
+        path: '/relations/-',
+        value: {
+          rel: 'System.LinkTypes.Hierarchy-Reverse',
+          url: `https://dev.azure.com/${org}/_apis/wit/workItems/${Number(parentId)}`,
+        },
+      });
+    }
+    for (const att of listAttachments) {
+      relationUpdates.push({
+        op: 'add',
+        path: '/relations/-',
+        value: {
+          rel: 'AttachedFile',
+          url: att.url,
+          attributes: { comment: String(att.comment || '').slice(0, 500) },
+        },
+      });
+    }
+    if (relationUpdates.length) {
       await callTool('wit_work_item_write', {
         action: 'update',
         project,
         id,
-        updates: [
-          {
-            op: 'add',
-            path: '/relations/-',
-            value: {
-              rel: 'System.LinkTypes.Hierarchy-Reverse',
-              url: `https://dev.azure.com/${org}/_apis/wit/workItems/${Number(parentId)}`,
-            },
-          },
-        ],
+        updates: relationUpdates,
       });
     }
     return (await getItems([id]))[0];
@@ -377,6 +435,89 @@ export function createAzdo({
     return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
+  async function uploadAttachment({ fileName, buffer }) {
+    const safeName = sanitizeFileName(fileName, 'attachment');
+    const buf = toBuffer(buffer);
+    if (!buf.length) throw new McpError('empty attachment', { status: 400, code: 'emptyAttachment' });
+    if (buf.length > MAX_ATTACHMENT_BYTES) {
+      throw new McpError('attachment too large', { status: 413, code: 'attachmentTooLarge', params: { maxMb: MAX_ATTACHMENT_MB } });
+    }
+    const res = await callTool(
+      'wit_work_item_attachment_upload',
+      { project, fileName: safeName, content: buf.toString('base64') },
+      { timeoutMs: 120_000 },
+    );
+    const id = res?.id || attachmentIdFromUrl(res?.url);
+    if (!id || !res?.url) throw new McpError('invalid attachment response', { status: 502, code: 'invalidAttachment' });
+    return {
+      id,
+      name: safeName,
+      size: buf.length,
+      url: withFileNameParam(res.url, safeName),
+    };
+  }
+
+  async function addAttachment(id, { fileName, buffer, comment = '' }) {
+    const uploaded = await uploadAttachment({ fileName, buffer });
+    await callTool('wit_work_item_attachment_link', {
+      project,
+      workItemId: Number(id),
+      attachmentUrl: uploaded.url,
+      ...(comment ? { comment: String(comment).slice(0, 500) } : {}),
+    });
+    return getItem(id);
+  }
+
+  async function removeAttachment(id, attachmentId) {
+    const target = String(attachmentId || '').trim();
+    if (!target) throw new McpError('invalid attachment', { status: 400, code: 'invalidAttachment' });
+    const wi = await callTool('wit_work_item', { action: 'get', project, id: Number(id), expand: 'All' });
+    if (!wi?.id) throw new McpError(`Work item ${id} not found`, { status: 404, code: 'notFound', params: { id } });
+    const relations = wi.relations || [];
+    const idx = relations.findIndex(
+      (r) => r.rel === 'AttachedFile' && (attachmentIdFromUrl(r.url) === target || String(r.attributes?.id) === target),
+    );
+    if (idx < 0) throw new McpError('attachment not found', { status: 404, code: 'attachmentNotFound' });
+    await callTool('wit_work_item_write', {
+      action: 'update',
+      project,
+      id: Number(id),
+      updates: [
+        { op: 'test', path: '/rev', value: Number(wi.rev) },
+        { op: 'remove', path: `/relations/${idx}` },
+      ],
+    });
+    return getItem(id);
+  }
+
+  async function getAttachment(attachmentId, { fileName } = {}) {
+    const cleanId = String(attachmentId || '').trim();
+    if (!/^[0-9a-fA-F-]{8,64}$/.test(cleanId)) {
+      throw new McpError('invalid attachment id', { status: 400, code: 'invalidAttachment' });
+    }
+    let res;
+    try {
+      // Sem fileName na tool MCP para receber sempre resource.blob em base64 (sem transformação em texto).
+      res = await callTool('wit_work_item_attachment', { project, attachmentId: cleanId }, { timeoutMs: 120_000 });
+    } catch (err) {
+      if (/404|not found/i.test(err.message)) {
+        throw new McpError('attachment not found', { status: 404, code: 'attachmentNotFound', tool: err.tool });
+      }
+      throw err;
+    }
+    const blob = typeof res?.blob === 'string' ? Buffer.from(res.blob, 'base64') : Buffer.isBuffer(res) ? res : null;
+    if (!blob) throw new McpError('attachment not found', { status: 404, code: 'attachmentNotFound' });
+    const safeName = sanitizeFileName(fileName, cleanId);
+    const ext = safeName.includes('.') ? safeName.split('.').pop().toLowerCase() : '';
+    const mimeType = MIME_BY_EXT[ext] || 'application/octet-stream';
+    return {
+      buffer: blob,
+      mimeType,
+      fileName: safeName,
+      inlineAllowed: SAFE_INLINE_MIMES.has(mimeType),
+    };
+  }
+
   return {
     getMeta,
     getSprintItems,
@@ -388,6 +529,10 @@ export function createAzdo({
     updateItem,
     createItem,
     addComment,
+    uploadAttachment,
+    addAttachment,
+    removeAttachment,
+    getAttachment,
     getPeople,
     getParentCandidates,
     getBlocked,

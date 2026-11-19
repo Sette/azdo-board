@@ -1,9 +1,17 @@
 // Rotas REST do front. Cada uma delega para o serviço do Azure DevOps (azdo.js),
 // aceitando instância fixa (modo local/demo) ou função `(req) => azdo` (modo multi-usuário).
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { describeMissing, msg, pickLang } from './i18n.js';
 
+const MAX_ATTACHMENT_MB = 20;
+const rawAttachment = express.raw({ type: 'application/octet-stream', limit: `${MAX_ATTACHMENT_MB}mb` });
 const list = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
+
+function contentDisposition(disposition, fileName) {
+  const ascii = String(fileName || 'attachment').replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  const utf8 = encodeURIComponent(String(fileName || 'attachment'));
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
 
 export function createRouter(azdo) {
   const r = Router();
@@ -25,11 +33,37 @@ export function createRouter(azdo) {
   r.patch('/items/:id', h((req) => svc(req).updateItem(req.params.id, req.body || {})));
   r.post('/items', h((req) => svc(req).createItem(req.body || {})));
   r.post('/items/:id/comments', h((req) => svc(req).addComment(req.params.id, req.body?.text)));
+  r.post('/attachments', rawAttachment, h((req) => svc(req).uploadAttachment({ fileName: req.query.fileName, buffer: req.body })));
+  r.get('/attachments/:attachmentId', (req, res, next) => {
+    Promise.resolve(svc(req).getAttachment(req.params.attachmentId, { fileName: req.query.fileName }))
+      .then(({ buffer, mimeType, fileName, inlineAllowed }) => {
+        const inline = inlineAllowed && req.query.download !== '1';
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', String(buffer.length));
+        res.setHeader('Content-Disposition', contentDisposition(inline ? 'inline' : 'attachment', fileName));
+        res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        res.end(buffer);
+      })
+      .catch(next);
+  });
+  r.post(
+    '/items/:id/attachments',
+    rawAttachment,
+    h((req) => svc(req).addAttachment(req.params.id, { fileName: req.query.fileName, comment: req.query.comment, buffer: req.body })),
+  );
+  r.delete('/items/:id/attachments/:attachmentId', h((req) => svc(req).removeAttachment(req.params.id, req.params.attachmentId)));
 
   return r;
 }
 
 export function errorHandler(err, req, res, _next) {
+  if (err.type === 'entity.too.large') {
+    err.status = 413;
+    err.code = 'attachmentTooLarge';
+    err.params = { maxMb: MAX_ATTACHMENT_MB };
+  }
   const status = err.status || 500;
   const lang = pickLang(req.get('x-lang'), process.env.APP_LANG || 'en');
   let message = err.message;

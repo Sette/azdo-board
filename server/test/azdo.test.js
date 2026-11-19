@@ -186,3 +186,97 @@ test('taskboard: sprint items get their column; a state change also moves the co
   // A column that doesn't match the state is refused.
   await assert.rejects(() => azdo.updateItem(5, { rev: 1, column: 'Validation' }), (e) => e.code === 'columnState');
 });
+
+test('attachments: upload, add, download com política inline segura, remoção com test /rev e criação com anexo', async () => {
+  const attGuid = '11111111-2222-4333-8444-555555555555';
+  const rawBytes = Buffer.from('hello-png-bytes');
+  const relations = [
+    { rel: 'System.LinkTypes.Hierarchy-Reverse', url: 'https://dev.azure.com/org/_apis/wit/workItems/1' },
+  ];
+  const { calls, callTool } = fakeTools({
+    'work:list_team_iterations': () => [],
+    'work:get_team_settings': () => ({ defaultAreaPath: 'Proj' }),
+    'wit_work_item:get_type': () => null,
+    wit_work_item_attachment_upload: ({ fileName, content }) => {
+      assert.equal(fileName, 'screen.png');
+      assert.equal(Buffer.from(content, 'base64').toString(), 'hello-png-bytes');
+      return { id: attGuid, url: `https://dev.azure.com/org/Proj/_apis/wit/attachments/${attGuid}` };
+    },
+    wit_work_item_attachment_link: ({ workItemId, attachmentUrl }) => {
+      relations.push({ rel: 'AttachedFile', url: attachmentUrl, attributes: { id: 99, name: 'screen.png', resourceSize: rawBytes.length } });
+      return { workItemId, attachmentUrl };
+    },
+    wit_work_item_attachment: ({ attachmentId, fileName }) => {
+      assert.equal(attachmentId, attGuid);
+      assert.equal(fileName, undefined);
+      return { blob: rawBytes.toString('base64'), mimeType: 'application/octet-stream' };
+    },
+    'wit_work_item:get': ({ id }) => ({
+      id,
+      rev: 7,
+      fields: { 'System.WorkItemType': 'Task', 'System.Title': 'T', 'System.State': 'New' },
+      relations: [...relations],
+    }),
+    'wit_work_item:get_batch': ({ ids }) => ids.map((id) => wi(id)),
+    'wit_work_item:list_comments': () => ({ comments: [] }),
+    'wit_work_item_write:create': () => ({ id: 88 }),
+    'wit_work_item_write:update': ({ updates }) => {
+      const rem = updates.find((u) => u.op === 'remove');
+      if (rem) relations.splice(Number(rem.path.split('/').pop()), 1);
+      return { id: 5 };
+    },
+  });
+
+  const azdo = createAzdo({ callTool, env });
+  await assert.rejects(() => azdo.uploadAttachment({ fileName: 'empty.png', buffer: Buffer.alloc(0) }), (e) => e.code === 'emptyAttachment');
+
+  const detailAfterAdd = await azdo.addAttachment(5, { fileName: '../screen.png', buffer: rawBytes });
+  assert.equal(detailAfterAdd.attachments.length, 1);
+  assert.equal(detailAfterAdd.attachments[0].id, attGuid);
+  assert.match(detailAfterAdd.attachments[0].url, /fileName=screen\.png/);
+
+  // PNG allows inline; SVG/HTML force download (inlineAllowed: false) to block XSS.
+  const pngDownload = await azdo.getAttachment(attGuid, { fileName: 'screen.png' });
+  assert.equal(pngDownload.inlineAllowed, true);
+  assert.equal(pngDownload.mimeType, 'image/png');
+  assert.deepEqual(pngDownload.buffer, rawBytes);
+
+  const svgDownload = await azdo.getAttachment(attGuid, { fileName: 'vector.svg' });
+  assert.equal(svgDownload.inlineAllowed, false);
+
+  // Removing uses test /rev + positional /relations/1 (after parent at index 0).
+  const detailAfterRemove = await azdo.removeAttachment(5, attGuid);
+  assert.equal(detailAfterRemove.attachments.length, 0);
+  const removeCall = calls.find((c) => c.args.action === 'update');
+  assert.deepEqual(removeCall.args.updates, [
+    { op: 'test', path: '/rev', value: 7 },
+    { op: 'remove', path: '/relations/1' },
+  ]);
+
+  // Creating item with pre-uploaded attachment links both parent and attachment in one update.
+  await azdo.createItem({
+    type: 'Task',
+    title: 'With attachment',
+    parentId: 5,
+    planning: 'planned',
+    activity: 'Development',
+    attachments: [{ url: `https://dev.azure.com/org/Proj/_apis/wit/attachments/${attGuid}?fileName=screen.png` }],
+  });
+  const createLinkCall = calls.filter((c) => c.args.action === 'update').at(-1);
+  assert.equal(createLinkCall.args.updates.length, 2);
+  assert.equal(createLinkCall.args.updates[1].value.rel, 'AttachedFile');
+
+  // Rejects non-AzDO attachment URLs on createItem.
+  await assert.rejects(
+    () =>
+      azdo.createItem({
+        type: 'Task',
+        title: 'Bad url',
+        parentId: 5,
+        planning: 'planned',
+        activity: 'Development',
+        attachments: [{ url: 'https://evil.example.com/_apis/wit/attachments/11111111-2222-3333-4444-555555555555' }],
+      }),
+    (e) => e.code === 'invalidAttachment',
+  );
+});

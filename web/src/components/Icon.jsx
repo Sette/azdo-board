@@ -251,6 +251,51 @@ export default function Icon({ name, size = 16, className = '', title }) {
     case 'edit':
       paths = <path d="M10.8 2.6l2.6 2.6L5.6 13H3v-2.6l7.8-7.8Z" />;
       break;
+    case 'paperclip':
+      paths = <path d="M12.5 7.4l-5.1 5.1a3.2 3.2 0 1 1-4.5-4.5l5.4-5.4a2.1 2.1 0 1 1 3 3L6.2 10.7a1 1 0 1 1-1.4-1.4l4.7-4.7" />;
+      break;
+    case 'image':
+      paths = (
+        <>
+          <rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.3" />
+          <circle cx="5.6" cy="6.1" r="1.1" />
+          <path d="M2.6 11.8l3.5-3.4 2.5 2.4 1.8-1.8 3 2.8" />
+        </>
+      );
+      break;
+    case 'download':
+      paths = (
+        <>
+          <path d="M8 2.5v7.5M5.2 7.4L8 10.2l2.8-2.8" />
+          <path d="M2.8 11.2v1.5a.8.8 0 0 0 .8.8h8.8a.8.8 0 0 0 .8-.8v-1.5" />
+        </>
+      );
+      break;
+    case 'upload':
+      paths = (
+        <>
+          <path d="M8 10V2.6M5.2 5.4L8 2.6l2.8 2.8" />
+          <path d="M2.8 11.2v1.5a.8.8 0 0 0 .8.8h8.8a.8.8 0 0 0 .8-.8v-1.5" />
+        </>
+      );
+      break;
+    case 'trash':
+      paths = (
+        <>
+          <path d="M2.8 4.5h10.4M6 4.5V3.2a.7.7 0 0 1 .7-.7h2.6a.7.7 0 0 1 .7.7v1.3" />
+          <path d="M4.2 4.5l.6 8.2a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9l.6-8.2" />
+          <path d="M6.8 7v4M9.2 7v4" />
+        </>
+      );
+      break;
+    case 'file':
+      paths = (
+        <>
+          <path d="M4 2.2h5.2l3.3 3.3v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3.2a1 1 0 0 1 1-1Z" />
+          <path d="M9 2.3v3.3h3.3" />
+        </>
+      );
+      break;
     case 'priority-1':
       paths = (
         <>

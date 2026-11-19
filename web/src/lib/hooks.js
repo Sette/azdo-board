@@ -35,25 +35,31 @@ const LIST_KEYS = [['sprint'], ['backlog'], ['my'], ['search'], ['blocked'], ['v
 const chains = new Map();
 const latestRev = new Map();
 const inflight = new Map();
-function queuedUpdate(id, changes) {
-  inflight.set(id, (inflight.get(id) || 0) + 1);
-  const run = () => {
-    const rev = Math.max(changes.rev ?? 0, latestRev.get(id) ?? 0) || undefined;
-    return api.update(id, { ...changes, rev }).then((detail) => {
-      latestRev.set(id, detail.rev);
-      return detail;
-    });
-  };
-  const next = (chains.get(id) || Promise.resolve())
+function enqueueItemOp(id, run) {
+  const key = Number(id);
+  inflight.set(key, (inflight.get(key) || 0) + 1);
+  const next = (chains.get(key) || Promise.resolve())
     .catch(() => {})
     .then(run)
+    .then((detail) => {
+      if (detail?.rev != null) latestRev.set(key, detail.rev);
+      return detail;
+    })
     .finally(() => {
-      const left = (inflight.get(id) || 1) - 1;
-      if (left <= 0) inflight.delete(id);
-      else inflight.set(id, left);
+      const left = (inflight.get(key) || 1) - 1;
+      if (left <= 0) inflight.delete(key);
+      else inflight.set(key, left);
     });
-  chains.set(id, next);
+  chains.set(key, next);
   return next;
+}
+
+function queuedUpdate(id, changes) {
+  const key = Number(id);
+  return enqueueItemOp(key, () => {
+    const rev = Math.max(changes.rev ?? 0, latestRev.get(key) ?? 0) || undefined;
+    return api.update(key, { ...changes, rev });
+  });
 }
 
 function patchLists(qc, id, optimistic) {
@@ -87,7 +93,7 @@ export function useUpdateItem() {
     },
     onError: (err, { id }, ctx) => {
       for (const [key, data] of ctx?.snapshots || []) qc.setQueryData(key, data);
-      if (ctx?.prevItem && !inflight.get(id)) qc.setQueryData(['item', String(id)], ctx.prevItem);
+      if (ctx?.prevItem && !inflight.get(Number(id))) qc.setQueryData(['item', String(id)], ctx.prevItem);
       if (err.status === 422 && err.missingFields) {
         // quem chamou abre o diálogo de campos faltando (SaveItemProvider)
       } else if (err.status === 409) {
@@ -99,9 +105,9 @@ export function useUpdateItem() {
       LIST_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k }));
     },
     onSuccess: (detail) => {
-      if (!inflight.get(detail.id)) {
+      if (!inflight.get(Number(detail.id))) {
         qc.setQueryData(['item', String(detail.id)], detail);
-        const { children, parent, comments, ...flat } = detail;
+        const { children, parent, comments, attachments, ...flat } = detail;
         for (const k of LIST_KEYS) {
           for (const [key, data] of qc.getQueriesData({ queryKey: k })) {
             if (Array.isArray(data)) qc.setQueryData(key, data.map((it) => (it.id === detail.id ? { ...it, ...flat } : it)));
@@ -109,6 +115,26 @@ export function useUpdateItem() {
         }
       }
       if (detail.parentId) qc.invalidateQueries({ queryKey: ['item', String(detail.parentId)] });
+    },
+  });
+}
+
+export function useAddAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file, comment }) => enqueueItemOp(id, () => api.addAttachment(id, file, comment)),
+    onSuccess: (detail) => {
+      qc.setQueryData(['item', String(detail.id)], detail);
+    },
+  });
+}
+
+export function useRemoveAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, attachmentId }) => enqueueItemOp(id, () => api.removeAttachment(id, attachmentId)),
+    onSuccess: (detail) => {
+      qc.setQueryData(['item', String(detail.id)], detail);
     },
   });
 }

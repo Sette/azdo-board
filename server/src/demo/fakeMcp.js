@@ -2,24 +2,32 @@
 // tool actions azdo.js uses, in the same shape the real server returns, so the mappers
 // and the rest of the app run unchanged. Changes live in memory until the server restarts.
 import { McpError } from '../mcp.js';
+import { attachmentIdFromUrl, attachmentNameFromUrl, sanitizeFileName } from '../mappers.js';
 import { ME, STATES, TASKBOARD } from './data.js';
 import { runWiql } from './wiql.js';
 
 const PARENT = 'System.LinkTypes.Hierarchy-Reverse';
 const CHILD = 'System.LinkTypes.Hierarchy-Forward';
+const ATTACHED = 'AttachedFile';
 
 export function createDemoCallTool(store, { env, now = () => new Date() }) {
   const org = env.AZDO_ORG;
   const itemUrl = (id) => `https://dev.azure.com/${org}/_apis/wit/workItems/${id}`;
+  const attachmentUrl = (id, fileName) =>
+    `https://dev.azure.com/${org}/${encodeURIComponent(env.AZDO_PROJECT)}/_apis/wit/attachments/${id}?fileName=${encodeURIComponent(fileName)}`;
   const wiqlCtx = () => ({ project: env.AZDO_PROJECT, me: env.AZDO_ME, now: now() });
+
+  function hierarchyRelations(it) {
+    const rel = [];
+    if (it.fields['System.Parent']) rel.push({ rel: PARENT, url: itemUrl(it.fields['System.Parent']) });
+    for (const c of store.items.values()) if (c.fields['System.Parent'] === it.id) rel.push({ rel: CHILD, url: itemUrl(c.id) });
+    return rel;
+  }
 
   function snapshot(it, { relations = false } = {}) {
     const wi = { id: it.id, rev: it.rev, fields: { ...it.fields, 'System.Rev': it.rev } };
     if (relations) {
-      const rel = [];
-      if (it.fields['System.Parent']) rel.push({ rel: PARENT, url: itemUrl(it.fields['System.Parent']) });
-      for (const c of store.items.values()) if (c.fields['System.Parent'] === it.id) rel.push({ rel: CHILD, url: itemUrl(c.id) });
-      wi.relations = [...rel, ...it.links];
+      wi.relations = [...hierarchyRelations(it), ...it.links];
       wi.multilineFieldsFormat = { ...it.formats };
     }
     return wi;
@@ -29,6 +37,24 @@ export function createDemoCallTool(store, { env, now = () => new Date() }) {
     it.rev += 1;
     it.fields['System.ChangedDate'] = now().toISOString();
     it.fields['System.ChangedBy'] = ME;
+  }
+
+  function buildAttachmentRelation(url, comment = '') {
+    const attId = attachmentIdFromUrl(url);
+    const meta = attId ? store.attachments?.get(attId) : null;
+    const at = meta?.createdDate || now().toISOString();
+    return {
+      rel: ATTACHED,
+      url,
+      attributes: {
+        id: store.nextRelationId ? store.nextRelationId++ : Math.floor(Math.random() * 1e6),
+        name: sanitizeFileName(meta?.fileName || attachmentNameFromUrl(url) || 'attachment'),
+        resourceSize: meta?.size ?? 0,
+        resourceCreatedDate: at,
+        authorizedDate: at,
+        comment: comment || '',
+      },
+    };
   }
 
   function applyPatch(it, updates) {
@@ -48,7 +74,14 @@ export function createDemoCallTool(store, { env, now = () => new Date() }) {
       } else if (kind === 'relations' && u.op === 'add') {
         const target = Number(String(u.value?.url).split('/').pop());
         if (u.value?.rel === PARENT) it.fields['System.Parent'] = target;
+        else if (u.value?.rel === ATTACHED) it.links.push(buildAttachmentRelation(u.value.url, u.value.attributes?.comment));
         else it.links.push(u.value);
+      } else if (kind === 'relations' && u.op === 'remove') {
+        const idx = Number(ref);
+        const offset = hierarchyRelations(it).length;
+        if (!Number.isNaN(idx) && idx >= offset && idx - offset < it.links.length) {
+          it.links.splice(idx - offset, 1);
+        }
       }
     }
     touch(it);
@@ -121,6 +154,32 @@ export function createDemoCallTool(store, { env, now = () => new Date() }) {
       const c = { id: store.nextCommentId++, text, format: 0, createdBy: ME, createdDate: at, modifiedDate: at };
       list.push(c);
       return c;
+    },
+    wit_work_item_attachment_upload: ({ fileName, content }) => {
+      const safeName = sanitizeFileName(fileName, 'attachment');
+      const seq = store.nextAttachmentSeq ? store.nextAttachmentSeq++ : (store.nextAttachmentSeq = 2, 2);
+      const id = `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`;
+      const size = Buffer.from(String(content || ''), 'base64').length;
+      const createdDate = now().toISOString();
+      if (!store.attachments) store.attachments = new Map();
+      store.attachments.set(id, { id, fileName: safeName, base64: String(content || ''), size, createdDate });
+      return { id, url: attachmentUrl(id, safeName) };
+    },
+    wit_work_item_attachment_link: ({ workItemId, attachmentUrl: url, comment }) => {
+      const it = get(workItemId);
+      if (!it) throw new McpError(`Work item ${workItemId} not found`, { status: 404, tool: 'wit_work_item_attachment_link' });
+      it.links.push(buildAttachmentRelation(url, comment));
+      touch(it);
+      return { attachmentUrl: url, workItemId: Number(workItemId) };
+    },
+    wit_work_item_attachment: ({ attachmentId }) => {
+      const entry = store.attachments?.get(String(attachmentId));
+      if (!entry) throw new McpError(`Attachment ${attachmentId} not found`, { status: 404, tool: 'wit_work_item_attachment' });
+      return {
+        uri: `data:application/octet-stream;base64,${entry.base64}`,
+        mimeType: 'application/octet-stream',
+        blob: entry.base64,
+      };
     },
     search_workitem: ({ searchText, workItemType, state, assignedTo, top = 50 }) => {
       const words = String(searchText).toLowerCase().split(/\s+/).filter(Boolean);

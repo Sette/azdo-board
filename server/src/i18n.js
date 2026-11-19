@@ -41,6 +41,10 @@ const MESSAGES = {
     invalidPat: () => 'Invalid or expired Azure DevOps PAT, or missing Work Items (Read & Write) permission.',
     csrfBlocked: () => 'Invalid request origin or missing security header',
     rateLimited: () => 'Too many attempts. Wait a moment and try again.',
+    emptyAttachment: () => 'Empty file',
+    attachmentTooLarge: ({ maxMb }) => `File exceeds the ${maxMb} MB limit`,
+    invalidAttachment: () => 'Invalid attachment',
+    attachmentNotFound: () => 'Attachment not found',
   },
   pt: {
     notFound: ({ id }) => `Item ${id} não encontrado`,
@@ -68,6 +72,10 @@ const MESSAGES = {
     invalidPat: () => 'PAT do Azure DevOps inválido, expirado ou sem permissão de Work Items (Read & Write).',
     csrfBlocked: () => 'Origem da requisição inválida ou cabeçalho de segurança ausente',
     rateLimited: () => 'Muitas tentativas. Aguarde um instante e tente novamente.',
+    emptyAttachment: () => 'Arquivo vazio',
+    attachmentTooLarge: ({ maxMb }) => `O arquivo excede o limite de ${maxMb} MB`,
+    invalidAttachment: () => 'Anexo inválido',
+    attachmentNotFound: () => 'Anexo não encontrado',
   },
 };
 

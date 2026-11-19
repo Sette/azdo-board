@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api.js';
 import { useCreateItem, useItemParam, useMeta, useParents, usePeople } from '../lib/hooks.js';
 import { prefs } from '../lib/format.js';
 import { useI18n } from '../lib/i18n.jsx';
+import { CreateAttachmentsField } from './Attachments.jsx';
 import Avatar from './Avatar.jsx';
 import Dropdown from './Dropdown.jsx';
 import Icon from './Icon.jsx';
@@ -60,6 +62,9 @@ function CreateModal({ defaults, onClose }) {
     planning: '',
   }));
   const [extra, setExtra] = useState({});
+  const [files, setFiles] = useState([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const uploadedCache = useRef(new WeakMap());
   const [error, setError] = useState('');
 
   const rules = meta?.typeRules?.[type] || {};
@@ -76,7 +81,7 @@ function CreateModal({ defaults, onClose }) {
   }, [type, defs]);
 
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const onKey = (e) => e.key === 'Escape' && !document.querySelector('[data-lightbox]') && onClose();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -142,6 +147,20 @@ function CreateModal({ defaults, onClose }) {
       if (v !== '' && v !== undefined) body[d.key] = d.input === 'number' || d.numeric ? Number(v) : v;
     }
     try {
+      if (files.length) {
+        setUploadingFiles(true);
+        const uploaded = [];
+        for (const file of files) {
+          let att = uploadedCache.current.get(file);
+          if (!att) {
+            att = await api.uploadAttachment(file);
+            uploadedCache.current.set(file, att);
+          }
+          uploaded.push({ url: att.url, name: att.name });
+        }
+        body.attachments = uploaded;
+        setUploadingFiles(false);
+      }
       const item = await create.mutateAsync(body);
       prefs.set('lastType', type);
       prefs.set(`fields:${type}`, Object.fromEntries(defs.filter((d) => d.options).map((d) => [d.key, extra[d.key]])));
@@ -149,6 +168,7 @@ function CreateModal({ defaults, onClose }) {
       onClose();
       if (defaults.openAfter !== false) openItem(item.id);
     } catch (err) {
+      setUploadingFiles(false);
       setError(err.message);
     }
   }
@@ -283,14 +303,21 @@ function CreateModal({ defaults, onClose }) {
               </div>
             ))}
           </div>
+          <Field label={t('attachments')}>
+            <CreateAttachmentsField files={files} onChange={setFiles} disabled={create.isPending || uploadingFiles} />
+          </Field>
           {error && <div className="rounded-[3px] bg-danger-bg px-3 py-2 text-sm text-danger-ink">{error}</div>}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-6 py-3">
           <button type="button" onClick={onClose} className="rounded-[3px] px-3 py-1.5 text-sm font-medium text-ink-subtle hover:bg-hover">
             {t('cancel')}
           </button>
-          <button type="submit" disabled={create.isPending} className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60">
-            {create.isPending ? t('creating') : t('create')}
+          <button
+            type="submit"
+            disabled={create.isPending || uploadingFiles}
+            className="rounded-[3px] bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+          >
+            {uploadingFiles ? t('uploadingAttachments') : create.isPending ? t('creating') : t('create')}
           </button>
         </div>
       </form>

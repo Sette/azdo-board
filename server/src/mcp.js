@@ -125,6 +125,8 @@ export async function invokeClientTool(client, name, args = {}, { timeoutMs = 60
       tool: name,
     });
   }
+  const resource = (result.content || []).find((c) => c.type === 'resource' && c.resource);
+  if (resource && !parts.length) return resource.resource;
   return pickPayload(parts);
 }
 

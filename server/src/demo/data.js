@@ -66,6 +66,10 @@ export const TASKBOARD = [
 const day = 86_400_000;
 const iso = (d) => new Date(d).toISOString();
 
+// Sample 240x140 card wireframe PNG for demo mode.
+const SAMPLE_WIREFRAME_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAPAAAACMCAIAAADN17N/AAABo0lEQVR42u3ZMQ2AMBRF0bpABFpYMIgCHCABCQQWNgQAE2ggKWnTnperoDlTfwj9LJWTJxDQEtAS0BLQAloCWgJaAloCWkBLQEtAS0BLQAtoCWgJaAloCWgBLQEtAS1F6rxuqZiAFtAS0BLQEtACWgJaAloCWgJaQEtAS0BL+YFetl2KXkrQj1nUAW1AA21AA21AmwFtQANtQANtQANtQJsBbUADbUADbUB/A920nX4KaKCBBhpooIEGGmigBTTQQAMNNNBAAw000GZAG9BAG9BAG9BAG9BmQBvQQBvQQBvQQFudoIdxUtkBLaCBFtBAC2igBTTQQPu2MwPagAbagAbagDYD2gxoAxpoA9phxXEEaKCBBlpAAy2ggRbQQAMNtBnQBjTQBjTQBjTQBrQZ0AY00AY00AY00FYt6PXIMQMaaAMaaAMaaKCBBhpooA1ooA1ooA1ooIEGGmignb4NaKANaDOgDWigDWigDWgzoM2ANqCBNqCBtjpBS9FLBlrKLaAFtAS0BLQEtICWgJaAloCWgBbQEtAS0BLQEtACWgJayqAX3qXa6EUTb+UAAAAASUVORK5CYII=';
+
 export function createStore(now = new Date()) {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -129,6 +133,15 @@ export function createStore(now = new Date()) {
   add(102, 'Feature', 'Product search', 'In Progress', { parent: 100, assignee: P.diego, effort: 13 });
   add(103, 'Feature', 'Customer accounts', 'In Progress', { parent: 100, assignee: P.lena, effort: 13 });
 
+  const demoAttId = '00000000-0000-4000-8000-000000000001';
+  const demoAttName = 'saved-cards-mockup.png';
+  const demoAttBytes = Buffer.from(SAMPLE_WIREFRAME_PNG_B64, 'base64').length;
+  const demoAttCreated = iso(now.getTime() - 28 * 3600e3);
+  const demoAttUrl = `https://dev.azure.com/${DEMO_ENV.AZDO_ORG}/${encodeURIComponent(root)}/_apis/wit/attachments/${demoAttId}?fileName=${encodeURIComponent(demoAttName)}`;
+  const attachments = new Map([
+    [demoAttId, { id: demoAttId, fileName: demoAttName, base64: SAMPLE_WIREFRAME_PNG_B64, size: demoAttBytes, createdDate: demoAttCreated }],
+  ]);
+
   add(201, 'Product Backlog Item', 'Pay with a saved card at checkout', 'Committed', {
     parent: 101,
     assignee: P.alex,
@@ -139,7 +152,21 @@ export function createStore(now = new Date()) {
       'Returning customers should be able to pay with a card they saved before, without typing the number again.\n\n' +
       '- Cards are **tokenized** by the payment provider; we never store the number.\n- Up to 5 saved cards per account.',
     criteria: '- [x] Saved cards are listed on the payment step\n- [ ] The default card is pre-selected\n- [ ] Removing a card asks for confirmation',
-    links: [{ rel: 'Hyperlink', url: 'https://github.com/fabrikam/web/pull/412', attributes: { name: 'PR #412: saved cards' } }],
+    links: [
+      { rel: 'Hyperlink', url: 'https://github.com/fabrikam/web/pull/412', attributes: { name: 'PR #412: saved cards' } },
+      {
+        rel: 'AttachedFile',
+        url: demoAttUrl,
+        attributes: {
+          id: 900,
+          name: demoAttName,
+          resourceSize: demoAttBytes,
+          resourceCreatedDate: demoAttCreated,
+          authorizedDate: demoAttCreated,
+          comment: 'Checkout saved cards UI wireframe',
+        },
+      },
+    ],
   });
   add(202, 'Product Backlog Item', 'Show the delivery estimate on the cart page', 'In Review', {
     parent: 101,
@@ -217,5 +244,15 @@ export function createStore(now = new Date()) {
     [308, 'Blocked'],
   ]);
 
-  return { items, comments, sprints, columns, nextId: 400, nextCommentId: commentId };
+  return {
+    items,
+    comments,
+    sprints,
+    columns,
+    attachments,
+    nextId: 400,
+    nextCommentId: commentId,
+    nextAttachmentSeq: 2,
+    nextRelationId: 1000,
+  };
 }
