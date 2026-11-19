@@ -83,6 +83,29 @@ const SYSTEM_RICH = {
 const isRich = (d) => d.input === 'rich' || d.input === 'links';
 const richFields = (fields = []) => ({ ...SYSTEM_RICH, ...Object.fromEntries(fields.filter(isRich).map((d) => [d.key, d.ref])) });
 
+export function attachmentIdFromUrl(url) {
+  const m = String(url || '').match(/\/_apis\/wit\/attachments\/([0-9a-fA-F-]{8,64})(?:[/?#]|$)/);
+  return m ? m[1] : null;
+}
+
+export function attachmentNameFromUrl(url) {
+  try {
+    return new URL(String(url)).searchParams.get('fileName') || null;
+  } catch {
+    return null;
+  }
+}
+
+export function sanitizeFileName(name, fallback = 'attachment') {
+  const cleaned = String(name || '')
+    .replace(/[\r\n\0]/g, '')
+    .split(/[/\\]/)
+    .pop()
+    .trim()
+    .replace(/^\.+$/, '');
+  return (cleaned || fallback).slice(0, 200);
+}
+
 export function toItemDetail(wi, org, fields = []) {
   const f = wi.fields || {};
   const formats = wi.multilineFieldsFormat || {};
@@ -113,6 +136,18 @@ export function toItemDetail(wi, org, fields = []) {
     externalLinks: relations
       .filter((r) => r.rel === 'ArtifactLink' || r.rel === 'Hyperlink')
       .map((r) => ({ url: r.url, name: r.attributes?.name || r.rel })),
+    attachments: relations
+      .filter((r) => r.rel === 'AttachedFile')
+      .map((r) => ({
+        id: attachmentIdFromUrl(r.url),
+        relationId: r.attributes?.id ?? null,
+        url: r.url,
+        name: sanitizeFileName(r.attributes?.name || attachmentNameFromUrl(r.url) || 'attachment'),
+        size: num(r.attributes?.resourceSize),
+        createdDate: r.attributes?.resourceCreatedDate || r.attributes?.authorizedDate || null,
+        comment: r.attributes?.comment || '',
+      }))
+      .sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || '')),
     webUrl: org ? `https://dev.azure.com/${org}/_workitems/edit/${wi.id}` : null,
   };
 }
