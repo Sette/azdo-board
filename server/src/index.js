@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { createAgentService } from './agents.js';
 import { createAuth, patFingerprint } from './auth.js';
 import { createAzdo } from './azdo.js';
 import { closeClient, createMcpPool, getClient } from './mcp.js';
@@ -32,6 +33,7 @@ app.use(express.json({ limit: '2mb' }));
 // AZDO_DEMO=1: fictional in-memory data, no Azure DevOps (see src/demo/).
 const demo = process.env.AZDO_DEMO === '1';
 const mcpPool = createMcpPool();
+const agents = createAgentService();
 const auth = createAuth({
   onPatClear: (pat) => mcpPool.evictPat(pat),
 });
@@ -74,6 +76,7 @@ app.use('/api', (_req, res, next) => {
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api', auth.csrfGuard);
 app.use('/api/auth', auth.createAuthRouter());
+app.use('/api/agents', auth.requireAuth, agents.createRouter());
 app.use('/api', auth.requireAuth, createRouter(azdoTarget));
 app.use('/api', errorHandler);
 
@@ -97,6 +100,7 @@ const server = app.listen(port, host, () => {
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {
     server.close();
+    agents.closeAll();
     if (!demo) {
       await Promise.all([closeClient(), mcpPool.closeAll()]);
     }

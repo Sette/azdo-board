@@ -45,6 +45,10 @@ const MESSAGES = {
     attachmentTooLarge: ({ maxMb }) => `File exceeds the ${maxMb} MB limit`,
     invalidAttachment: () => 'Invalid attachment',
     attachmentNotFound: () => 'Attachment not found',
+    agentsDisabled: () => 'Local AI CLI agents are disabled in this environment',
+    emptyAgentPrompt: () => 'Enter a message or select a skill',
+    invalidAgentProvider: () => 'Unsupported AI CLI provider',
+    agentNotInstalled: ({ name }) => `${name} is not installed on PATH`,
   },
   pt: {
     notFound: ({ id }) => `Item ${id} não encontrado`,
@@ -76,6 +80,10 @@ const MESSAGES = {
     attachmentTooLarge: ({ maxMb }) => `O arquivo excede o limite de ${maxMb} MB`,
     invalidAttachment: () => 'Anexo inválido',
     attachmentNotFound: () => 'Anexo não encontrado',
+    agentsDisabled: () => 'Os agentes locais de CLI estão desabilitados neste ambiente',
+    emptyAgentPrompt: () => 'Digite uma mensagem ou selecione uma skill',
+    invalidAgentProvider: () => 'Provedor de CLI de IA inválido',
+    agentNotInstalled: ({ name }) => `${name} não está instalado no PATH`,
   },
 };
 

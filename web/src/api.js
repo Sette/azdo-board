@@ -108,4 +108,53 @@ export const api = {
   uploadAttachment: (file) => uploadBinary('/attachments', file, { fileName: file.name }),
   addAttachment: (id, file, comment) => uploadBinary(`/items/${id}/attachments`, file, { fileName: file.name, comment }),
   removeAttachment: (id, attachmentId) => request('DELETE', `/items/${id}/attachments/${encodeURIComponent(attachmentId)}`),
+  agentsMeta: () => request('GET', '/agents/meta'),
+  stopAgent: (runId) => request('POST', '/agents/stop', { runId }),
+  streamAgentChat: async ({ provider, sessionId, prompt, context, signal, onEvent }) => {
+    const res = await fetch('/api/agents/chat', {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal,
+      headers: {
+        'x-lang': apiLang,
+        'x-requested-with': 'azdo-board',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ provider, sessionId, prompt, context }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (
+        (res.status === 401 && (data.code === 'unauthenticated' || data.code === 'invalidPat')) ||
+        (res.status === 403 && data.code === 'patRequired')
+      ) {
+        window.dispatchEvent(new CustomEvent('azdo:auth-invalid', { detail: { code: data.code } }));
+      }
+      throw new ApiError(cleanError(data.error) || `Error ${res.status}`, res.status, data.code);
+    }
+    if (!res.body) return;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let sep = buf.indexOf('\n\n');
+      while (sep >= 0) {
+        const frame = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('data: ')) {
+            try {
+              onEvent?.(JSON.parse(line.slice(6)));
+            } catch {
+              /* frame parcial/inválido */
+            }
+          }
+        }
+        sep = buf.indexOf('\n\n');
+      }
+    }
+  },
 };

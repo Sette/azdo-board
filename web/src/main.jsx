@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
+import { AgentCopilotProvider } from './components/AgentCopilot.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { CreateProvider } from './components/CreateModal.jsx';
 import { SaveItemProvider } from './components/SaveItem.jsx';
@@ -23,7 +24,9 @@ createRoot(document.getElementById('root')).render(
           <AuthGate>
             <SaveItemProvider>
               <CreateProvider>
-                <App />
+                <AgentCopilotProvider>
+                  <App />
+                </AgentCopilotProvider>
               </CreateProvider>
             </SaveItemProvider>
           </AuthGate>

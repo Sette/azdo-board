@@ -1,0 +1,29 @@
+{
+  "name": "azdo-copilot",
+  "description": "Copiloto do Azure DevOps Board com acesso ao servidor MCP azure-devops e skills locais",
+  "prompt": null,
+  "mcpServers": {
+    "azure-devops": {
+      "command": "node",
+      "args": ["./server/src/mcp-bridge.js"]
+    }
+  },
+  "tools": [
+    "read",
+    "grep",
+    "glob",
+    "@azure-devops"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "read",
+    "grep",
+    "glob",
+    "@azure-devops"
+  ],
+  "resources": [],
+  "hooks": {},
+  "toolsSettings": {},
+  "includeMcpJson": true,
+  "model": null
+}

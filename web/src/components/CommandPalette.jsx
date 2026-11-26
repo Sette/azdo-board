@@ -5,6 +5,7 @@ import { prefs, stateCategory } from '../lib/format.js';
 import { useMeta } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
 import { useTheme } from '../lib/theme.jsx';
+import { useCopilot } from './AgentCopilot.jsx';
 import Icon from './Icon.jsx';
 import StateLozenge from './StateLozenge.jsx';
 import TypeIcon from './TypeIcon.jsx';
@@ -21,6 +22,7 @@ export function ShortcutsModal({ onClose }) {
     ['Ctrl + K', t('shortcutPalette')],
     ['/', t('shortcutSearch')],
     ['C', t('shortcutCreate')],
+    ['A', t('shortcutCopilot')],
     ['M', t('shortcutMine')],
     ['[', t('shortcutSidebar')],
     ['I', t('shortcutCopyId')],
@@ -56,6 +58,7 @@ export function ShortcutsModal({ onClose }) {
 export default function CommandPalette({ onClose, onCreate, onNavigate }) {
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme, purple, togglePurple } = useTheme();
+  const copilot = useCopilot();
   const { data: meta } = useMeta();
   const qc = useQueryClient();
   const navigate = onNavigate;
@@ -106,6 +109,9 @@ export default function CommandPalette({ onClose, onCreate, onNavigate }) {
 
     const actions = [
       { id: 'act-create', group: t('paletteActions'), label: t('createPlus').replace(/^＋\s*/, ''), icon: <Icon name="plus" size={14} />, run: () => onCreate() },
+      ...(copilot?.enabled
+        ? [{ id: 'act-copilot', group: t('paletteActions'), label: t('copilotTitle'), icon: <Icon name="sparkles" size={14} />, run: () => copilot.open() }]
+        : []),
       {
         id: 'act-theme-light',
         group: t('paletteActions'),
