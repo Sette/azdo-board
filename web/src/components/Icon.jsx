@@ -313,6 +313,38 @@ export default function Icon({ name, size = 16, className = '', title }) {
     case 'priority-4':
       paths = <path d="M4 6l4 4 4-4" />;
       break;
+    case 'sparkles':
+      paths = (
+        <>
+          <path d="M8 2l1.45 3.75L13.2 7.2l-3.75 1.45L8 12.4 6.55 8.65 2.8 7.2l3.75-1.45L8 2Z" />
+          <path d="M12.6 11.2l.55 1.35 1.35.55-1.35.55-.55 1.35-.55-1.35-1.35-.55 1.35-.55.55-1.35Z" />
+        </>
+      );
+      break;
+    case 'terminal':
+      paths = (
+        <>
+          <rect x="2" y="2.6" width="12" height="10.8" rx="1.4" />
+          <path d="M4.6 6l2.4 2-2.4 2M8.4 10h2.8" />
+        </>
+      );
+      break;
+    case 'send':
+      paths = (
+        <>
+          <path d="M13.6 2.4L7.2 8.8" />
+          <path d="M13.6 2.4L9.4 13.6 7.2 8.8 2.4 6.6 13.6 2.4Z" />
+        </>
+      );
+      break;
+    case 'stop':
+      paths = (
+        <>
+          <circle cx="8" cy="8" r="5.8" />
+          <rect x="5.8" y="5.8" width="4.4" height="4.4" rx="0.6" fill="currentColor" stroke="none" />
+        </>
+      );
+      break;
     default:
       return null;
   }

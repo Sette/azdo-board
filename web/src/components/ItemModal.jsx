@@ -5,6 +5,7 @@ import { fmtDateTime, stateCategory } from '../lib/format.js';
 import { useItemParam, useMeta, usePeople } from '../lib/hooks.js';
 import { useI18n } from '../lib/i18n.jsx';
 import { toEditableMarkdown, toggleTaskCheckbox, toSafeHtml } from '../lib/rich.js';
+import { ItemCopilotMenu } from './AgentCopilot.jsx';
 import Avatar from './Avatar.jsx';
 import { AttachmentsSection, ImageLightbox } from './Attachments.jsx';
 import { BlockedBadge } from './Card.jsx';
@@ -36,7 +37,7 @@ export default function ItemModal() {
     if (!itemId) return undefined;
     const onKey = (e) =>
       e.key === 'Escape' &&
-      !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal], [data-lightbox]') &&
+      !document.querySelector('[data-editing="true"], [data-create-modal], [data-required-dialog], [data-command-palette], [data-shortcuts-modal], [data-lightbox], [data-copilot-drawer]') &&
       close();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -131,6 +132,7 @@ function ItemView({ id, onClose }) {
         </div>
         <div className="flex items-center gap-1.5">
           {pending && <span className="text-xs text-ink-muted">{t('saving')}</span>}
+          <ItemCopilotMenu item={item} />
           <button
             type="button"
             onClick={() => copyText('link', item.webUrl, t('linkCopiedToast'))}

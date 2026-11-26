@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './components/AuthGate.jsx';
+import AgentCopilotDrawer, { CopilotTopBarButton, useCopilot } from './components/AgentCopilot.jsx';
 import CommandPalette, { ShortcutsModal } from './components/CommandPalette.jsx';
 import { useOpenCreate } from './components/CreateModal.jsx';
 import Icon from './components/Icon.jsx';
@@ -293,6 +294,7 @@ function TopBar({ onOpenMobileNav, onOpenShortcuts }) {
       >
         <Icon name="keyboard" size={15} />
       </button>
+      <CopilotTopBarButton />
       <ThemeSwitch />
       <LangSwitch />
       <UserMenu />
@@ -402,6 +404,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const triggerCreate = useContextualCreate();
+  const copilot = useCopilot();
 
   const toggleCollapse = () =>
     setCollapsed((c) => {
@@ -450,6 +453,9 @@ export default function App() {
       } else if (e.key === 'm') {
         e.preventDefault();
         window.dispatchEvent(new Event('azdo:toggle-mine'));
+      } else if (e.key === 'a' && copilot?.enabled) {
+        e.preventDefault();
+        copilot.toggle();
       } else if (e.key === '[') {
         e.preventDefault();
         toggleCollapse();
@@ -492,6 +498,7 @@ export default function App() {
         </main>
       </div>
       <ItemModal />
+      <AgentCopilotDrawer />
       {paletteOpen && (
         <CommandPalette
           onClose={() => setPaletteOpen(false)}
